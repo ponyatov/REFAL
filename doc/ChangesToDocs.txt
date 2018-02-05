@@ -1,0 +1,12 @@
+Changes to docs
+
+1. Function POS returns list of indices for all entries
+2. Functions of Container: pos argument may be negative,
+	in which case it is equivalent to (length+1+pos)
+3. Container functions for mode MASK:
+    The bit sequence of a number is considered as infinite,
+    that is expanded infinitely by the last (sign) bit.
+    Thus <GETN 3 5> return s '0' rather than ' '. 
+    However LENCONT returns number of essential bits,
+    thus <LENCONT 3> = 3, <GETV 3> = '110' (the leftmost 
+    bit is the lowest, the rightmost bit is the sign).

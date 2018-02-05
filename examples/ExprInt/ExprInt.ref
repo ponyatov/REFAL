@@ -1,0 +1,29 @@
+/************************************************************
+ *      The arithmetic expression interpreter               * 
+ ************************************************************/
+
+$Export Main;
+
+ExprInt eExpr sX = eExpr :
+        {
+        'x' = sX;
+        sN = sN;
+        (eExpr1) = <ExprInt eExpr1 sX>;
+        eA'+'eB = <ADD <ExprInt eA sX> <ExprInt eB sX>>;
+        eA'*'eB = <MUL <ExprInt eA sX> <ExprInt eB sX>>;
+        };
+
+$ENTRY
+Main  = <PRINTLN <Test1 9>>
+        <PRINTLN <Test  9>>
+         <PRINTLN <Test  X>>  /* ERROR (Unexpected FAIL) in <ADD 5 X> */
+        ;
+
+Test1   sX = <ADD 1 <MUL sX <ADD 2 <MUL sX <ADD 3 <MUL sX <ADD 4 <MUL sX <ADD 5 sX>>>>>>>>>;
+
+Test    sX = <ExprInt <Expr> sX>;
+
+*Expr  = 1;
+Expr  = 1'+'('x*'(2'+'('x*'(3'+'('x*'(4'+'('x*'(5'+'('x')))))))));
+
+$EXEC TRACE ExprInt;

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE jscp SYSTEM "jscp.dtd">
+<jscp 
+		invoke="-1" 
+		unfoldLoop="5" 
+		finalInitializedArrayElements="true" 
+		defaultFields="true"
+		generInclude="1"
+		generalizeTry="false"
+		>
+	<package name="org.refal.j">
+		<class name="ObjectFactory" doscp="true"/>
+		<classSet>
+			<include name="Box"/>
+			<include name="Mask"/>
+			<include name="Chars"/>
+			<include name="Real"/>
+			<include name="Table"/>
+			<method name="*Object" joinIf="true"/>
+			<method name="" invoke="0"/>
+		</classSet>
+	</package>
+
+	<unit name="org/refal/j/ObjectFactory.java" doscp="true"/>
+	
+	<unitSet path = ".">
+		<include name="org/refal/j/Box"/>
+		<include name="org/refal/j/Mask"/>
+		<include name="org/refal/j/Real"/>
+		<include name="org/refal/j/Chars"/>
+		<include name="org/refal/j/Table"/>
+	</unitSet>
+</jscp>

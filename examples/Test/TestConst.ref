@@ -1,0 +1,29 @@
+$CONST C = 'c', B=(A &C);
+$EXPORT B;
+
+X {
+    =;
+    'A' = '\253';
+    '\n' = ();
+    '\'' = (Q Q) (Q Q);
+    Pi = 31415926;
+    N = 1234567890;
+    S = "abcd\\efg\n";
+    X = &X;
+    C = &C;
+    &C = &B;
+    &B = &ADD;
+    sx = sx;
+    };
+    
+PR ea = <WRITELN ea>;
+
+$ENTRY Main {
+    = <Main Pi N S X Y C &C &B>;
+    ea = <PR <Map &X ea>>;
+    };
+
+Map { 
+    tf = ;
+    tf t1 e2 = <APPLY tf t1> <Map tf e2>;
+    };

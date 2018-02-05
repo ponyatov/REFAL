@@ -1,0 +1,19 @@
+$export F;
+
+$CONST C=1, D=2;
+
+$from M $import H;
+
+$BOX "j";
+
+F e sA e sB e = <H sA &"j" sB> = <APPEND XAXA sB>;
+
+    
+C    sy '\''  ez = '\'' ez;
+
+D    sy ''    ez = ''   ez;
+
+E    sy 'a''b'    ez = ''   ez;
+
+G    sy "a""b"    ez = ""   ez;
+

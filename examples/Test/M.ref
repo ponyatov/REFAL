@@ -1,0 +1,8 @@
+//$From Test $Import Y1;
+$Export Y,Y1;
+//$Entry 
+Y = Hello Y <Y1>;
+//Y1 = Hello Y1;
+$EXEC SET &Y2 ('abc');
+$ENTRY Y2 = Hello Y2;
+$Extern Y1;

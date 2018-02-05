@@ -1,0 +1,171 @@
+************************************************************************
+*  R E F A L - 6       Copyright (C) 1992 by Arkady Klimov             *
+*       rcmain.ref  - main module of refal compiler                    *
+************************************************************************
+$package org.refal.j.compiler;
+
+$EXTBOX Lineno, Ftable, Rest, Modname, Typename, Extern, Errfl;
+
+$EXPORT Main,Swap,MakePortedExtern;
+$EXPORT COMP,"comp";
+
+$FROM Rclist $IMPORT Inifls;
+$FROM Rssynj $IMPORT Getdef, Testdef, Extdef, Use, Def;
+$FROM Rsserv $IMPORT ERR, ERR0, WNG, Flag, Setflags, PathPrefix,
+                     Oneof, Open, ERASE, CLOAD, Ptime, SWAP;
+$FROM Rcoutj $IMPORT CompFile;
+
+$BOX ExitValue;
+$CHANNEL In;
+
+$ENTRY GO { = <Main <ArgList>> };
+ArgList = <Map *ToWord <GETV <SHIFT <GET *SYSARG> 0 -1>>>;
+ToWord tA = <SETV X <GETV tA>>;
+
+GetVersion = <Open R &In 'version.txt'> = <READ_LINE! &In> <CLOSE &In>;
+
+Main { e.args = 
+      <PRINTLN "Refal-Java Compiler, ver." <GetVersion>> =
+      <SETV *ExitValue> =
+      <COMP e.args> =
+        <Flag 'M'> : { (eZ) = ; tZ = <EXIT <GETV *ExitValue>> };
+   };
+   
+* Entries to call the compiler from refal
+
+COMP eA = <Init <Regs eA>>;
+
+"comp" eA = <COMP eA>;
+
+Regs {
+   = ()
+    <PRINTLN>
+    <PRINTLN "Command line syntax:">
+    <PRINTLN "   rfcj [switches] file1 file2 ...">
+    <PRINTLN "switch /A - abstract code output (not java)">
+    <PRINTLN "switch /D - debug mode (enables <TRACE F G ...>)">
+    <PRINTLN "switch /L - make a listfile FILEi.RFL">
+    <PRINTLN "switch /U - uppercase words in source text">
+    <PRINTLN "switch /5 - Refal-5 lexics, e.g. s1e2 is 2 vars">
+    <PRINTLN "switch /Xxxx - output file with extension .xxx">
+    <PRINTLN "switch /out <dirname> - output directory">
+    <PRINTLN "switch /in <dirname> - input directory">
+        ;
+   e1 tA e2, <GETV tA> : sk ea , sk: {'/'; '-'} = 
+            <GetSwitch (sk ea) e2> : {
+                tS e3 = tS <Regs e1 e3>;
+                = <Regs>;
+                };
+   e1 = (e1);
+   };
+   
+GetSwitch {
+    (sk 'out') s.name er = (OutDir s.name) er;
+    (sk 'out' e) = <PRINTLN "Switch " sk "out must be followed by dir name after blank">;
+    (sk 'in') s.name er = (InDir s.name) er;
+    (sk 'in' e) = <PRINTLN "Switch " sk "in must be followed by dir name after blank">;
+    (sk sd ev) er, <Oneof sd ('ADLU5')>:T = {
+        ev : = (sd) er;
+        <PRINTLN "Switch " sk sd "must be followed by blank">;
+        };
+    (sk 'X' ex) er = ('X' ex) er;
+    (sk es) er = <PRINTLN "Invalid switch " sk es>;
+    };
+
+Init { eR (eF) = <Setflags eR> <Trfiles eF> };
+
+Trfiles {
+   t1 e2 = <Trfile <GETV t1>> <Trfiles e2>;
+   = ;
+   };
+Trfile ef = <Opinp <Mkext ef ()>> <Inifls 'builtinj.fls'> : {
+    e1 F e2 =;
+    e1 = <Compmod <Parse>>;
+    };
+
+Mkext {
+   e1 '.' (e2) = e1 (e2);
+   e1 sx (e2) , <Oneof sx ('/\\')> : F = <Mkext e1 (sx e2)>;
+   e1 (e2) = e1 e2 ('ref');
+   };
+
+Opinp { eN (eX) = <PathPrefix InDir> eN '.' eX : e.path =
+    <Open 'r' 12 e.path> : {
+    T , <SETV *Modname eN> <SETV *Typename eX>
+        <PRINTLN e.path':'> : ez
+          = <Oplst <Flag 'L'> <PathPrefix InDir> eN '.rfl'>;
+    F = F <ERR0 "Unable to open " e.path>;
+};  };
+
+Oplst {
+   () e1 , <Open 'w' 5 e1> : {
+          T = (e1);
+          F = F <ERR0 "Unable to open " e1>;
+          };
+*     Erase old RFL-file
+   tZ e1 = <ERASE e1>;
+   };
+
+Parse = <CLOAD *Getdef <SyntModName>>
+      = <Ptime "Parsing time = " *Syntax>;
+
+SyntModName = <Flag 'Y'> : { F = "rssynt"; (ex) = <SETV X 'rssynt' ex> };
+
+Syntax { , <SETV *Lineno 0> <MAKE TABLE *Ftable> <SETV *Extern>
+           <SETV *Errfl> <SETV *Rest>
+           = <GetMod () > <Testdef> };
+
+* <GetMod (e.Stack) e.Prog> => e.Prog'
+* Each element of stack is (t.Extern t.Ftable e.Prog)
+*  = a state when statement $MODULE was encountered
+GetMod  (e.Stack) e.Prog , <Getdef> : {
+     0 , e.Stack : {
+        = <Testdef>
+        = <Extdef> : {
+            ez = (Module <Swaps () ()> e.Prog);
+            /* Empty */ = <WNG "Module has no exported entities"> = e.Prog;
+            };
+        eZ = <ERR "Unexpected end of file. $END is expected">;
+        };
+     (Module ex)
+           = <GetMod (e.Stack (<Swaps () ()> e.Prog)) >;
+     (End ex) , e.Stack : {
+        = <ERR "Unbalanced $END"> = <GetMod (e.Stack) e.Prog>;
+        eS (t.Ext t.Tbl e.Pr) = <Testdef>
+           = <Extdef> : e.Exdf
+           = <GETV *Extern> : e.Ext1
+           = <GetMod (eS) e.Pr (Module <Swaps t.Ext t.Tbl>
+* Use and Def deal with new environment, changed by Swaps
+                         <Use e.Ext1> <Def e.Exdf> e.Prog)>;
+        };
+     eF = <GetMod (e.Stack) e.Prog eF>;
+     };
+     
+Swap sV (eA) = (<SWAP sV eA>);
+Swaps tE tT = <Swap *Extern tE> <Swap *Ftable tT>;
+
+Modext , {
+   <Flag 'X'> : (eX) = '.' eX;
+   <GETENV RESTYPE> : t1 e2 = '.' t1 e2;
+   '.java';
+   };
+
+Compmod {
+   eP , <GETV *Errfl> : = <PRINTLN "No syntax errors">
+*   <DELETE <GETV <SyntModName>>>
+    <CLOAD *CompFile "rccomp">
+    = <PathPrefix OutDir> <GETV *Modname> <Modext> : eN =
+           <Open 'w' 4 eN> : {
+           T = 
+              <Ptime "Compilation time = " (*CompFile eP)>
+              <CLOSE 4> =;
+           F = <ERR "Unable to open " eN>;
+           };
+   eP = <SETV *ExitValue 10>;
+   };
+
+/* Differences between refal-6 and refal-J */
+
+/* Exported and imported entities should be defined also as Extern in Refal-6
+    whereas in refal-J they should be discriminated from that defined as Extern */
+MakePortedExtern = F;

@@ -1,0 +1,47 @@
+
+$FROM STDIO $IMPORT PRINTLN;
+$FROM Reference $IMPORT MAKE,GET,NEW;
+$FROM Container $IMPORT GETV, SETV;
+$FROM Table $IMPORT TABLE_VALUE, TABLE_NAME, TABLE_LIST, TABLE_LINK;
+
+
+$TABLE T;
+
+C { sn tr ev 
+		= <GETV tr> : et
+		= { et : ev = PASSED; FAILED } : eR
+		= <PRINTLN sn ": " eR " /" et "/" ev "/"> ;
+		};
+
+TestTable sT = 
+			<PRINTLN "Test TABLE: " sT>
+			<C 1 sT>
+			<TABLE_LINK sT A B> <C 2 sT A B>
+			<C 3 (B) <TABLE_VALUE sT 'O' A>> <C 4 sT A B>
+			<C 5 (B) <TABLE_VALUE sT 'O' A>> <C 6 sT A B>
+			<C 7 (B) <TABLE_VALUE sT 'U' A>> <C 8 sT A B> 
+			<C "8A" (<TABLE_LIST sT>) A B>
+			<C 9 (('a')) <GET <SETV <TABLE_VALUE sT 'N' A> 'a'>>> <C 10 sT A <TABLE_VALUE sT 'O' A>>
+			<C 11 () <TABLE_VALUE sT 'D' A>> <C 12 sT>
+			<C 13 () <TABLE_VALUE sT 'O' A>> <C 14 sT>
+			<C 15 (('aa')) <GET <SETV <TABLE_VALUE sT 'U' A> 'aa'>>> <C 16 sT A <TABLE_VALUE sT 'O' A>>
+			;
+
+TestBox = <C 17 (('a')) <GET <SETV <NEW A> 'a'>>>
+		  <C 18 (('a')) <GET <SETV &D 'a'>>>
+		  <C 19 (()) <GET &E>>
+		  <C 19 (()) <GET <SETV &E >>>
+		  <C 20 (('a')) <GET &B>>;
+			
+$ENTRY Main e = <TestTable &T>
+	<MAKE TABLE &T> <TestTable &T>
+	<TestTable <MAKE TABLE>>
+	<TestTable <MAKE TABLE <NEW TTT>>>
+	 <TestBox> 
+	;
+
+$BOX B 'a';
+$BOX D 'a';
+$BOX E ;
+	
+$ENTRY GO = <Main>;

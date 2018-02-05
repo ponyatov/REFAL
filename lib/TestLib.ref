@@ -1,0 +1,62 @@
+$Export Main;
+
+$BOX A;
+$EMPTY N;
+$STRING S;
+$EMPTY R;
+$TABLE T;
+$TABLE X,Y,Z;
+
+Init
+    = <SET &R <DIV <REAL 314> 100>>
+    = <SET &N 17>
+    = <SETV &A <Map &Desc &A &N &S &R &T>>
+    = <TABLE_LINK *T A &A>
+    = <COPY &A <TABLE_VALUE *T 'U' ZZZ>>
+    = <SETV &S 'abc\n\tdef'>
+;
+    
+Desc sR = (<MODE sR> <NAME sR> sR);
+
+Repeat {
+    1 ea = <APPLY ea>;
+    sn ea = <DIV sn 2>: sm = <Repeat <SUB sn sm> ea> = <Repeat sm ea>;
+    };
+
+Dummy =;
+
+EvalTime {
+    0  sf ea = <APPLY sf ea>;
+    sn sf ea = <TIME_ELAPSED>:t1
+                = <Repeat sn sf ea>:er
+                = <TIME_ELAPSED>:t2
+                = <DIV <DIV <SUB t2 t1> <REAL 100>> sn> : tR
+                = <PRINTLN "Eval " sn " times function " sf ". Average time is " tR " sec">
+                = er;
+    };
+
+Decode es = <SETV &Y> = <DECODE &Y es>;
+
+TestDecode { 
+    sn ex = <ENCODE &X ex> : es = <PRINTLN es> 
+        = <EvalTime sn &Decode es> : sd ey = <WRITELN sd ey>
+        = <ENCODE &Z ey> : et = <PRINTLN et>
+        es : { 
+            et = <PRINTLN PASSED>; 
+            eu = <PRINTLN FAILED>;
+            }
+    };
+    
+TestMake sn e.modes = <EvalTime sn &Map &MAKE e.modes> : er = <WRITELN Result <Map &MODE er>>;
+
+$ENTRY GO = &STDIN <Main <GETV <SHIFT &SYSARG 0 -1>>>;    
+Main { 
+    t1 e2 = <WRITELN <GETV *A>> 
+        = <NUMB <GETV t1>> : sn
+        = <EvalTime sn &Dummy>
+        = <TestDecode sn 'Expr=' &A>
+        = <TestMake sn CHAIN VECTOR MASK STRING REAL TABLE>;
+    = <Main "0">;
+    };
+    
+$EXEC Init;

@@ -1,0 +1,56 @@
+$package org.refal.j;
+
+$FROM TraceData $IMPORT GetStep,NextStep,Push,Pop,ChkName;
+
+$EXPORT Begin,End,Fail,Error,Catch;
+
+/*************************************************** TraceData: 
+$FROM TERM   $IMPORT APPEND,POS,GETN,SHIFT,GETV,SETV;
+$FROM ARITHM $IMPORT ADD;
+
+$EXPORT Trace,GetStep,NextStep,Push,Pop,ChkName;
+
+$BOX Stack;
+$BOX Names;
+$BOX Step 0;
+
+Trace e.names = <APPEND &Names e.names>;
+
+GetStep = <GETV &Step>;
+
+NextStep = <SETV &Step <ADD <GetStep> 1>>;
+
+Push ea = <APPEND &Stack (ea)>;
+
+Pop = <GETN &Stack -2> : (ea) = <SHIFT &Stack -2 -1> = ea;
+
+ChkName sf , <POS &Names sf> : sf;
+
+****************************************************************/
+
+// TRACE e.names = <Trace e.names>;
+
+Begin ea : s.mod s.fun (e.arg), <GetStep>: sN, <NextStep>,
+    <Push sN ea>, <ChkName s.fun>
+        = <TraceMsg sN ": <" s.fun " " (M e.arg) ">" >;
+
+End e.res, <Pop>: sN s.mod s.fun (e.arg), 
+    <ChkName s.fun> = <GetStep>: sM
+        = <TraceMsg sN "-" sM ": <" s.fun " ...> -> " (M e.res)>;
+
+Fail , <Pop>: sN s.mod s.fun (e.arg), 
+    <ChkName s.fun> = <GetStep>: sM
+        = <TraceMsg sN "-" sM ": <" s.fun " ...> -> $FAIL">;
+
+Error ea : s.mod s.fun (e.arg) = <Pop>: sN eA
+        = <GetStep>: sM
+        = <TraceMsg "ERROR: STEP " sM ": <" s.fun " " (M e.arg) ">">;
+
+Catch ea: s.mod s.fun (e.arg) 
+        = <GetStep>: sM
+        = <TraceMsg "ERROR: STEP " sM ": Unexpected fail in <" s.fun " " (M e.arg) ">">;
+
+TraceMsg {
+    eA (M eR) eB = <PRINT eA> = <WRITE eR> = <TraceMsg eB>;
+    eA = <PRINTLN eA>;
+    };

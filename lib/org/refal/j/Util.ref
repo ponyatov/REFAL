@@ -1,0 +1,17 @@
+$package org.refal.j;
+
+$ENTRY I ex = ex;
+
+$ENTRY CTIME tf ex ,
+   <TIME_ELAPSED> <APPLY tf ex> <TIME_ELAPSED> : sb er se 
+   = <PRINTLN "Computation time = " <DIV <REAL <SUB se sb>> 100> " sec" >
+   = er;
+
+$ENTRY DEF s.name t.value
+    = <TABLE_VALUE &SYSTABLE 'D' s.name>
+    = <TABLE_LINK &SYSTABLE s.name t.value>
+    = t.value;
+    
+$ENTRY NEWLIST = <NEWOBJ "java.util.ArrayList">;
+
+$ENTRY NEWMAP = <NEWOBJ "java.util.HashMap">;

@@ -1,0 +1,31 @@
+/**************************************************************
+ *      The famous Select function                            * 
+ *  Takes sequence of sets and selects one element from each  *
+ *  set so that all selected elements are different.          *
+ *  The first argument en is a negative list,                 *
+ *  initially empty, to which the result is appended          *
+ *  The e.Sets argument is built (by function MkArg)          *
+ *  from the 1st command-line argument, e.g.                  *
+ *          'abcd' -> ('abcd') ('abc') ('ab') ('a')           *
+ *  The result list in this case will be 'dcba'               *
+ *  The time complexity is O(Fact(len))                       *
+ *  Use this test to compare different Refal implementations  *
+ **************************************************************/
+
+Select {
+    (en) e.Sets, e.Sets : {
+        = en;
+        (e1 sa e2) e.Sets1, en: # e3 sa e4 , <Select (en sa) e.Sets1>;
+        }
+    };
+
+Ptime = <PRINTLN <TIME>>;
+
+$ENTRY GO = <Ptime> = <PRINTLN <Do <ARG 1>>> = <Ptime>;
+
+Do ea = <PRINTLN "Arg=" ea> = { <Select () <MkArg ea>> ; "No such set" };
+
+MkArg { 
+    e1 sx = (e1 sx) <MkArg e1>;
+    = ;
+    };

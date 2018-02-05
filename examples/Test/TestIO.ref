@@ -1,0 +1,26 @@
+$CHANNEL IN, OUT;
+
+$EXEC PRINTLN <MODE &IN> '-' <MODE &OUT>;
+
+$EXEC OPEN &OUT XXX W;
+
+$EXEC WRITELN <MODE &IN> <MODE &OUT>;
+
+$ENTRY FW ex = <WRITE! &OUT ex>;
+
+$EXEC FW 'abcdef' Abcdef 1 2 3;
+
+$EXTRN STDIN, STDOUT;
+
+$TABLE T;
+
+FR = <ADD 1 2> 
+    = <PRINTLN "Enter term"> 
+    = <WRITELN! (&STDOUT &T) <READ! (&STDIN &T)>> 
+    = <FR>;
+    
+Main ea = <FR>;
+
+$export Main;
+
+//$EXEC CLOSE &OUT;

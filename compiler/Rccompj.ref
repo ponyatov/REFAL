@@ -1,0 +1,927 @@
+************************************************************************
+*  REFAL-JAVA  Copyright (C) 2002 by Arkady Klimov                     *
+*       rccompj.ref  - compile the Refal function to java              *
+************************************************************************
+$package org.refal.j.compiler;
+
+$EXPORT InitMod, ExtrnDecl, ReferNew, ConstTerm, 
+		DclExpr, ConstDcls, OutVar, GetStaticBlocks, Compile;
+
+$FROM Rssynj $IMPORT PublicAttr, DefinedIn, IsExtern, SetAttr;
+$FROM Rcoutj $IMPORT DeclaredIn, DebugMode;
+
+$TABLE Vars;   /* Table for generating new variable identifiers */
+$TABLE Fields; /* Table for generating new field identifiers */
+
+InitMod { 
+	= <MAKE TABLE &Fields> 
+	= <MAKE CHAIN &Symbols>
+	= <MAKE CHAIN &Expressions>
+	= <MAKE CHAIN &StaticBlocks>
+	};
+
+$BOX Cnf Arg Brs Var Map Exit Path;
+
+/* Common */
+	
+Concat t1 e2 = <APPEND t1 <Map *GETV e2>>;
+
+/* Generates new identifier with prefix s.Key in table s.Tab */
+NewId s.Tab s.Key = <TABLE_VALUE s.Tab 'U' s.Key> : s.Value
+		 	 = <MODE s.Value> : {
+				EMPTY = <SET s.Value 0> = s.Key;
+				MASK  = <SET s.Value <ADD s.Value 1>> 
+						= <APPEND s.Key '_' <SYMB <GET s.Value>>>
+				};
+
+NewVar {   s.Key = <NewId &Vars   s.Key> };
+NewField { s.Key = <NewId &Fields s.Key> };
+
+/*********************************************************************/
+/* Generic declaration for reference */
+ReferDecl { s.name t.init =
+		(Field 
+			(Mods <PublicAttr s.name> Static Final) 
+			(Member s.name) 
+			(ReferType)
+			t.init
+		) 
+	};
+
+ExtrnDecl { s.name = <ReferDecl s.name (ExtRefer s.name)> };
+ReferNew  { s.name = <IsExtern s.name> : {
+		T =;
+		F = <ReferDecl s.name (NewRefer s.name)> 
+		}};
+
+/*********************************************************************/
+/* Memoize Constant expressions and symbols */
+				
+$BOX Symbols; /* List of all constant symbols used in the module */
+
+DclSym { 
+	ts, <CONST ts> : F = (Member <FuncName ts>);
+	ts, <MODE ts> : STRING = (MakeSymbol ts);
+	ts = <GETV &Symbols> : {
+			e (ts sn) e = sn;
+			eL = <NewField "cSym">:sn= <AddSym ts sn> = sn;
+			};
+	};
+AddSym ts sn = <APPEND &Symbols (ts sn)> =;
+
+DclTerm {
+		sx = <DclSym sx>;
+		(P ex) = (Brac <DclExpr ex>);
+		};
+ConstTerm { tx = (Term <DclTerm tx>) };
+/*********************************************************************/
+/* &Expressions contains list of elements of the form 
+ * (E (ex) sn) or (T (e.code t.termResult) sn)
+ * where ex is constant expression,
+ * and sn is the constant's identifier
+ * e.code - static code needed to evaluate t.termResult 
+ * t.termResult: (Term ...) or (Elem ...)
+ * With tag T ex must be a term (this is the case of constant definition)
+ * Together with an expression the list contains also each proper 
+ * subexpression (i.e. contents of each bracket subterm) which precedes
+ * the expression expression in the list
+ */
+ 
+$BOX Expressions;
+
+DclExpr { ex = <GETV &Expressions> : {
+			e (E (ex) sn) e = sn;
+			eL = <SETV &Expressions <AddNewExpr (ex) (eL)>> = <DclExpr ex>;
+			}};
+			
+AddExpr sD (ex) sn = <APPEND &Expressions (sD (ex) sn)> =;
+
+/* <AddNewExpr (e.expr) (e.list) -> e.list1 */
+AddNewExpr { (ex) (eL) = {
+		eL : e (E (ex) sy) e = eL;
+		<AddSubExpr (ex) (eL)> (E (ex) <NewField "cExpr">);
+		}};
+
+* DclConst sn (ex) = <SETV &Expressions <AddSubExpr (ex)...
+
+/* register each subexpression of ex */
+AddSubExpr { (ex) (eL) = ex : {
+		(P ea) ey = <AddSubExpr (ey) (<AddNewExpr (ea) (eL)>)>;
+		 sa  ey = <DclSym sa> = <AddSubExpr (ey) (eL)>;
+		= eL;
+		}};
+
+ConstExpr { ex = (Arr <DclExpr ex>) };
+
+/* Outputs sequence of expr declarations of the form (ExprDcl sn (Terms e.terms)) */
+ConstDcls { = 
+	<Map &SymbDcl <GETV &Symbols>>
+	<Map &ExprDcl <GETV &Expressions>> 
+	};
+
+*	(SymbDcl s.name s.value)        = "private static final Object "   s.name 
+*										" = " <CreateSymbol s.value> ";";
+*	(ExprDcl s.name s.value e.comm) = "private static final Object[] " s.name 
+*										" = new Object[] {" s.value "};" <Comm e.comm>;
+	
+SymbDcl { (sx tn) = // (SymbDcl tn sx) };	
+				(Field 
+					(Mods Private Static Final) 
+					tn (TermType)
+					(MakeSymbol sx)
+					) };
+			
+ExprDcl {
+	(E (ex) sn) = // (ExprDcl sn (Terms <Map &ConstTerm ex>) <IMPLODE <ENCODE 0 <Demeta ex>>>) };
+				(Field 
+					(Mods Private Static Final) 
+					sn (ExprType) 
+					<MakeExpr <Map &ConstTerm ex>>
+					<TO_WORD <ENCODE 0 <Demeta ex>>> /* Comment */
+					);
+	(T (t.term) sn) = 					
+				(Field 
+					(Mods <PublicAttr sn> Static Final) 
+					sn (TermType) 
+					t.term
+					);
+	(T (e.code t.term) sn) = 					
+				(Field 
+					(Mods <PublicAttr sn> Static /* Final -- deleted as  */) 
+					sn (TermType) 
+					//t.term
+					)
+				<AddStatic e.code (Assign sn t.term)>;
+	};
+					
+* Demetacode expression
+Demeta  eA = <Map *Dem eA>;
+Dem  {
+   sA = sA;
+   (P eA) = (<Demeta eA>);
+   (K eA) = <APPLY <Demeta eA>>;
+   };
+
+/****************************************************/
+/* Evaluate object expression statically */
+
+EvalExpr { eA = <MAKE TABLE &Vars> = <Result <BrNewErr "Unexpected Fail in static initializer"> () () (eA)> };
+/* From Rcoutj */
+OutVar { 
+		EXEC sF (eA) = <EvalExpr (K sF eA)> : e.Code t.res = <AddStatic e.Code>;
+		CONST sR (eA) = {
+//			<IsConst eA> : T = 
+			<DclConst <FuncName sR> (eA)>;
+//			<ERR "CONST declaration not implemented for arbitrary R-expression">
+			};
+		sT sR (eA) 
+			= { <CONST sT> : T = sT; <FuncName sT> } : s.T1
+			= <FuncName sR> : s.name
+			= <ReferNew s.name>
+			  <ReferInit s.name s.T1>
+			  <ObjectInit sR (eA)>
+			};
+
+/* Constant definition $CONST name = t-value */ 
+DclConst { s.name (ex), ex : {
+		(P eA) = <EvalExpr eA> : e.Code (Arr sh) 
+				= <DclDynConst (e.Code (Term (Brac sh))) s.name>;
+		sA , <IsConstExpr sA> : T = <AddSym sA s.name>;
+		eA = <EvalExpr eA> : e.Code (Arr sh) 
+				= <DclDynConst (e.Code (Elem sh 0)) s.name>;
+		}};
+		
+DclDynConst (e.Code t.Term)	s.Name = <AddExpr T (e.Code t.Term) s.Name>
+				= { e.Code : ; <SetAttr 4 s.Name '*'> /* Dynamic constant */ =; };
+				
+ReferInit { 
+	s.name BOX =; /* Reference remains empty. For EXTBOX not detect redefinition */
+	s.name s.type = (StaticBlock (Stmt
+		(InvokeStatic "Reference" "defineReferable" (Params (Member s.name) (NewObj s.type))) 
+/*		(InvokeMethod (Member s.name) "defineReferable" (Params (NewObj s.type))) */
+		))
+	};
+
+ObjectInit {
+	sR () =;
+	sR (eA) = <EvalExpr eA> : e.Code t.res 
+				= <SubToArr t.res> : /* subarray not occurs here */ (Arr sh)
+				= <AddStatic e.Code (Stmt (InvokeMethod 
+						(Cast "Reference" (Member <FuncName sR>))
+						"init" (Params sh) ) )>;
+	};
+
+AddStatic { eC = <APPEND &StaticBlocks (StaticBlock eC)> = };	
+
+GetStaticBlocks { = <GETV &StaticBlocks> };
+
+$BOX StaticBlocks;
+
+/****************************************************/
+
+FuncName { sF = <CONST sF> : {
+*		T = sF; 
+		F = <NAME sF>; /* Temporarily */
+		}};
+
+Norm {
+	(IExp e1 (Minus e2) sn) = (IExp e1 (Minus e2) sn);
+	sn, <TYPE sn> : 'N' ez = (IExp (Minus ) sn);
+	tV = (IExp tV (Minus ) 0);
+	};
+
+IExp { 
+	e1 ta e2 (Minus e3 ta e4) sn = <IExp e1 e2 (Minus e3 e4) sn>;
+	(Minus ) sn = sn;
+	ta (Minus ) 0 = ta;
+	e1 (Minus e2) sn = (IExp e1 (Minus e2) sn);
+	};
+
+IAdd { tx ty = <Norm tx> : (IExp e1 (Minus e2) sn) = <Norm ty> : (IExp e3 (Minus e4) sm) 
+		= <IExp e1 e3 (Minus e2 e4) <ADD sn sm>> };
+
+ISub { tx ty = <Norm tx> : (IExp e1 (Minus e2) sn) = <Norm ty> : (IExp e3 (Minus e4) sm) 
+		= <IExp e1 e4 (Minus e2 e3) <SUB sn sm>> };
+		
+IExpToMonom {
+	(IExp ea) = <NewVar "z">:sz = (Dcl "int" sz (IExp ea)) sz;
+	ta = ta;
+	};
+
+IExpToBinom { tx, {
+	tx : (IExp ta (Minus ) sn) = tx;
+	<IExpToMonom tx>;
+	}};
+
+*   The syntax of the function body syntax tree:
+
+* Notation:  x | y  means x or y
+*            x* means repetition of x zero or more times
+
+* function_body = path*
+
+* pattern = (L expr)
+* result  = (R expr)
+* block = (G path* )
+* path = ( statement* ) 
+* action = pattern | result | block
+* statement = action | NOT [action] | STAKE | CUT | DO | BIND [pattern]
+
+* expr = term*
+* term = symbol | (P expr) | (vartype index) | (K expr)
+* index = symbol
+* vartype = E | T | S | V
+
+Compile { e.Body 
+			= <MAKE TABLE &Vars>
+			= <Group e.Body (
+					(Sub "a" 0 (L "a")) /* tA: Current value */
+					<BrNew Fail>        /* tB: Statements in case of fail */
+					( )                 /* tV: List of matched variables  */
+					( )                 /* tM: Map of matched parts, eg for sA e1 'A': ("a" 0 (S A) 1 (E 1) (IExp (L "a") (Minus ) -1) 'A' (L "a")) */
+					(T (Break Norm))    /* tX: statement to exit */
+				)>
+			};
+				
+/* Indicates whether previous result is needed */
+NeedValue {
+	(L eP) eR = T;
+	(R eP) eR = F;
+	(G (eT) eG) eR = <NeedValue eT>;
+	sO eR = <NeedValue eR>;
+	= T; /* Since previous result becomes returned result */
+};
+
+/* Operations on structures */
+/* Universal Map for record fields, record argument is on the right */
+/*
+MapR { t.Typ s.Fldn t.Fun t.Rec 
+			= <Pos t.Typ s.Fldn> : s.pos
+			= <APPLY t.Fun <GETN t.Rec s.pos>> : e.res t.Elem
+			= e.res <SETN t.Rec s.pos t.Elem>};
+*/
+GetR { t.Rec t.Typ s.Fldn  = <GETN t.Rec <Pos t.Typ s.Fldn>>};
+/* GetRs {t.Rec t.Typ e.Fldns = <Map (*GetR t.Rec t.Typ) e.Fldns>}; */
+
+Pos tv tx , <POS tv tx> : { sn = sn };
+/* Set multiple fields to record, record argument is on the left */
+SetR    {
+	t.Rec t.Typ = t.Rec;
+	t.Rec t.Typ s.Fldn t.Value e.Rest = 
+		<SetR <SETN t.Rec <Pos t.Typ s.Fldn> t.Value> t.Typ e.Rest>;
+	};
+
+/* Primitive operations on Cnf elements */
+/*
+Push { eb (ea) = (ea eb)};
+Pop { (ea tb) = tb (ea)};
+*/
+
+/* Special operations for Cnf */
+/*
+PushBrs { e.Brk tC  = <MapR &Cnf Brs (&Push e.Brk) tC>};
+PopBrs {        tC  = <MapR &Cnf Brs &Pop tC>};
+*/
+
+GetCnf { tC s.Fldn    = <GetR tC &Cnf s.Fldn   > };
+SetCnf { tC s.Fldn tX = <SetR tC &Cnf s.Fldn tX> };
+
+/* Compilation of Group, returns java statements as refal expression */
+Group { eg tC = <Paths eg tC> };
+Paths { e.Paths tC = tC : (tA tB tV tM tX) = e.Paths : {
+   = <Break tB>;
+   (ep) = <Path ep tC>;
+   (ep) eg = <NewVar M> : sm
+   		   = (Block sm <Path ep (tA <BrPush tB (Break sm)> tV tM tX)>) <Paths eg tC>;
+   }};
+
+/* Set current value to temporary variable "result" */
+ToResult { 
+	(Sub th 0 (L th)) = <ToResult (Arr th)>;
+	(Sub th t1 t2) = <IExpToMonom <ISub t2 t1>> : e.Code t.len =
+		= e.Code
+		(Assign "result" (Newarr (TermType) t.len))
+		(ArrayCopy th t1 "result" 0 t.len);
+	(Arr "result") = ;
+	(Arr ta) = (Assign "result" ta);
+	};
+
+/* Save value from temporary variable "result" to new local variable */
+FromResult {
+	(Arr "result") = <NewVar "r"> : sr = (Dcl (ExprType) sr "result") (Arr sr);
+	tA = tA;
+	};
+
+/* InitGap { (Sub th ti tj) eP = ((th ti) eP (tj))	}; */
+
+/* Reduce Expr to the format (Sub sh ti tj)
+/* ExpandExpr t.Exp = e.Code t.Exp */	
+ExpandExpr {
+	(Arr sa) = (Dcl "int" (L sa) (Length sa))
+				(Sub sa 0 (L sa));
+	(Sub sh ti tj) = (Sub sh ti tj);
+	};
+
+SubToArr {
+	(Arr sa) = (Arr sa);
+	(Sub sh 0 (L sh)) = (Arr sh);
+*	(Sub sh ti tj) , <ISub tj ti> : {1;2} =;
+	(Sub sh ti tj) 
+		= <NewVar "r">:sr 
+		= <IExpToMonom <ISub tj ti>> : {
+		  sn : {1;2} = 
+			(Dcl (ExprType) sr (NewArrInit (TermType) (Terms <ListElems sh ti sn>)))
+			(Arr sr);
+		  e.Code tv = e.Code
+			(Dcl (ExprType) sr (Newarr (TermType) tv))
+			(ArrayCopy sh ti sr 0 tv)
+			(Arr sr);
+		  };
+	};
+
+ListElems {
+	sh ti 0  = ;
+	sh ti sn = (Elem sh ti) <ListElems sh <IAdd ti 1> <SUB sn 1>>;
+	};
+
+LengthOfExpr {
+	(Arr sa) = (Length sa);
+	(Sub sh ti tj) = <ISub tj ti>;
+	};
+
+/* BoundsOfGap { (Gap sh (eL ti) (eP) (tj eR)) = ti tj }; */
+LengthOfGap { (Gap sh (eL ti) (eP) (tj eR)) = <ISub tj ti> };
+
+Path { e.Path tC = tC : (tA tB tV tM tX) = e.Path : {
+		= tX : { 
+			(T tS) = <ToResult tA> tS; 
+			(F tS) = tS;
+			};
+		(L eP)  eT = <FromResult tA> : e.Code tA1 = e.Code <Patrn (tA1 tB tV tM tX (eT)) eP>;
+		(R eR)  eT = <Result tB tV tM (eR)>: e.Code t.Res = e.Code <Path eT (t.Res tB tV tM tX)>;
+		(G eg)  eT = <FromResult tA> : e.Code tA1 = <NeedValue eT> : s.nv
+				   = <NewVar M>:sm = e.Code (Block sm <Paths eg (tA1 tB tV tM (s.nv (Break sm)))>) <Path eT ((Arr "result") tB tV tM tX)>;
+		NOT ta  eT = <NewVar M>:sm =        (Block sm <Path ta (tA <BrNew sm> tV tM (F <Break tB>))>) <Path eT tC>;
+		BIND ta eT = <Path ta CUT eT (tA <BrPush <BrStake tB> (Break Error)> tV tM tX)>;
+		DO      eT = <Path eT (tA <BrNew Error> tV tM tX)>;
+		STAKE   eT = <Path eT (tA <BrStake  tB> tV tM tX)>;
+		CUT     eT = <Path eT (tA <BrCut    tB> tV tM tX)>;
+		}
+	};
+
+MkMap { sh (eM) = (sh eM)};
+
+Testvar { 
+   (e1 (tv th) e2) tv = (th);
+   (e1)            tv = None;
+   };
+
+VarType { (sD tx) = sD };
+VarIndex { (sD tx) = {<MODE tx> : MASK = (); tx }};
+
+/* Operations on stack of breaks */
+/* Get the last statement from break  stack */
+Break { tB, tB : {
+	(t0 e tb) = tb;
+	((e0)) = <Break (e0)>;
+	}};
+/*
+Separate {
+	=;
+	ex = ": " ex;
+	};
+*/
+BrStake { (eb) = ((eb)) };
+BrCut { 
+	(0 tA e) = (0 tA);
+	((e0) e) = (e0);
+	};
+BrPush { (e0) tb = (e0 tb) };
+BrNew { sm = (0 (Break sm)) };
+BrNewErr { e.info = (0 (Error e.info)) };
+
+CheckSymb {
+	(S tx) th tB = (IfNot (IsSymb th) <Break tB>);
+	tv     th tB = ;
+	};
+
+*  Transfer to the next gap
+*  <Expl-next sn tV tM tH> => e.Ops s.n1 t.V1 t.M1
+*  (for detailes see comments to Expl function)
+NextGap {
+   (eC (e.Path)) (()) = <Path e.Path (eC)>;
+   tC ((eP) eS tg) = <PatrnL tC tg ((eP) eS)>; 
+   tC ((tg eP)) = <PatrnEE tC tg (() eP)>; 
+   };
+   
+* Compile pattern expression
+* <PatrnL t.Conf t.gap t.Gaps> => e.Ops t.Conf -- where t.Tail is empty
+* <PatrnR t.Conf t.gap t.Gaps> => e.Ops t.Conf -- where t.Tail is empty
+*   where
+*	t.Conf : (tA tB tV tM tX tT)
+*		where
+*		tA - where the current value is saved
+*		tB - stack of breaks
+*		tV - list of ready variables
+*		tM - list of ready expression maps
+*		tX : (s.nv tS) - 
+*				s.nv : {T; F } - indicates whether result is needed further
+*				tS - exit statement in case of success
+*		tT : (e.Tail) - tail of sentence
+*	t.gap :   (Gap sh (ti eL) (eP) (eR tj)) 
+*			| (Clash t.Arg e.Patrn) 
+*	- the current gap, where
+*      eL, eR - processed parts of initial gap from left and from right,
+*               which are lists of pairs: tv ti or tj tv resp.
+*         eL grows to the right from empty by t.elem t.i
+*         eR grows to the left  from empty by t.j t.elem 
+*      eP - the rest (inner) part of the gap (not labelled),
+*	   sh - gap's header variable name
+*   Initially gap is (Clash t.Arg t.Patrn) where
+*		t.Arg is expression/subexpression indicator (object expression): 
+*			(Arr sn) 
+*		  | (Sub sn ti tj)
+*		e.Patrh - pattern expression to be matched against the Arg.
+*	t.Gaps : ((eP) eS), where
+*     eP - processed gaps, eS - nonprocessed (by Expl-L)
+
+Patrn { (tA tB tV tM tX tT) eP = <PatrnL (tA tB tV tM tX tT) (Clash tA eP) (())> };
+		
+PatrnL {
+* Prepare gap
+	tC (Clash tA e.Patrn) t.Gaps
+		= <ClashToGap tA <GetCnf tC Brs> (e.Patrn)> : e.Code (tA1 t.Gap)
+		= e.Code <PatrnL <SetCnf tC Arg tA1> t.Gap t.Gaps>;
+* Check gap from left side:		
+	tC tg tG, tC : (tA tB tV tM tX tP), tg : (Gap sh (eL ti) (e.Rest) (eR))	= e.Rest : {
+* Gap is empty
+			= <NextGap <SetCnf tC Map <Apt tM <MkMap sh (eL eR)>>> tG>;
+* Symbol from left
+	   		tc eT, <IsConst tc> : T 
+	   			= (IfNot (TermsEqual (Elem sh ti) <ConstTerm tc>) <Break tB>)
+   					<PatrnL tC (Gap sh (eL ti tc <IAdd ti 1>) (eT) (eR)) tG>;
+* EV-variable from left	 
+   			(sD tx) eT, <Oneof sD (E V)> : T = <Testvar tV (sD tx)> : { 
+*   New EV-variable	 
+      			None = <PatrnR tC tg tG>;
+*   Old EV-variable 	 
+      			(to) = <NewVar <Concat "j" tx>> : sj
+      				 = <ExpandExpr to> : (Sub s.oh t.oi t.oj)
+      				 = <IExpToMonom <LengthOfExpr to>>: e.Code t.olen
+           			 = e.Code
+           			   (IfNot (Infix <ISub <LengthOfGap tg> t.olen> <NumTerms eT>) <Break tB>)
+           			   (Dcl "int" sj <IAdd ti t.olen>)
+           			   (IfNot (ExprsEqual sh ti s.oh t.oi t.olen) <Break tB>)
+	      				<PatrnL tC (Gap sh (eL ti (sD tx) sj) (eT) (eR)) tG>;
+	      		};
+
+* Duplicate term (s,t-variable or parenthesis) from left
+			tx eT, <Testvar tV tx> : (to) = 
+      			= (IfNot (TermsEqual to (Elem sh ti)) <Break tB>)
+      				<PatrnL tC (Gap sh (eL ti tx <IAdd ti 1>) (eT) (eR)) tG>;
+
+* Parenthesis from left (include the term into var-list tV)
+   			(P eT) eU , <NewVar "p"> : sp 
+   				= (Elem sh ti) : te /* location of the term */
+			  	= (IfNot (IsBrac te) <Break tB>)
+				  (Dcl (ExprType) sp (Cont te))
+					<PatrnL <SetCnf tC Var <Apt tV ((P eT) te)>> (Clash (Arr sp) eT)
+						 <Apt tG (Gap sh (eL ti (P eT) <IAdd ti 1>) (eU) (eR))>>;
+						 
+* New symbol/term variable from left
+   			tv eT, <VarType tv> : {S;T} 
+   				= (Elem sh ti) : te /* location of the term */
+      			= <CheckSymb tv te tB>
+      				<PatrnL <SetCnf tC Var <Apt tV (tv te)>> 
+      				(Gap sh (eL ti tv <IAdd ti 1>) (eT) (eR)) tG>;
+      		};
+    };
+
+PatrnR { tC tg tG, tC : (tA tB tV tM tX tP), tg : (Gap sh (eL ti) (e.Rest) (tj eR)) = e.Rest : {
+* Closed expression
+		(E tx) = <NextGap
+					<SetCnf <SetCnf tC
+						Map <Apt tM <MkMap sh (eL ti (E tx) tj eR)>>>
+						Var <Apt tV ((E tx) (Sub sh ti tj))>>
+				 tG>;
+* Symbol from right
+	   		eT tc, <IsConst tc> : T 
+				= (IfNot (TermsEqual (Elem sh <ISub tj 1>) <ConstTerm tc>) <Break tB>)
+					<PatrnL tC (Gap sh (eL ti) (eT) (<ISub tj 1> tc tj eR)) tG>;
+
+* E-variable from right
+   			eT (sD tx), <Oneof sD (E V)> : T = <Testvar tV (E tx)> : { 
+*   Old E-variable 	 
+      			(to) = <NewVar <Concat "i" tx>>: s.ix
+      				 = <ExpandExpr to> : (Sub s.oh t.oi t.oj)
+      				 = <IExpToMonom <LengthOfExpr to>>: e.Code t.olen
+           			 = e.Code
+           			   (IfNot (Infix <ISub <LengthOfGap tg> t.olen> <NumTerms eT>) <Break tB>)
+           			   (Dcl "int" s.ix <ISub tj t.olen>)
+           			   (IfNot (ExprsEqual sh s.ix s.oh t.oi t.olen) <Break tB>)
+	      				<PatrnL tC (Gap sh (eL ti) (eT) (s.ix (sD tx) tj eR)) tG>;
+*   New E-variable
+      			None = tG : ((e1) e2) = <NextGap tC ((e1 tg) e2)>;
+      			};
+
+* Duplicate term (s,t-variable or parenthesis) from right
+			eT tx, <Testvar tV tx> : (to) = 
+   				= <ISub tj 1> : tj-1
+      			= (IfNot (TermsEqual to (Elem sh ti)) <Break tB>)
+      				<PatrnL tC (Gap sh (eL ti) (eT) (tj-1 tx tj eR)) tG>;
+
+* Parenthesis from right
+   			eU (P eT) = <NewVar "p"> : sp 
+   				= <ISub tj 1> : tj-1 
+   				= (Elem sh tj-1) : te /* location of the term */
+				=	(IfNot (IsBrac te) <Break tB>)
+					(Dcl (ExprType) sp (Cont te))
+					<PatrnL <SetCnf tC Var <Apt tV ((P eT) te)>>
+						(Gap sh (eL ti) (eU) (tj-1 (P eT) tj eR)) 
+						 <Apt tG (Clash (Arr sp) eT)>>;
+						 
+* New symbol/term variable from right
+   			eT tv, <VarType tv> : {S;T} 
+   				= <ISub tj 1> : tj-1
+   				= (Elem sh tj-1) : te /* location of the term */
+      			= <CheckSymb tv te tB>
+					<PatrnL <SetCnf tC Var <Apt tV (tv te)>> 
+					(Gap sh (eL ti) (eT) (tj-1 tv tj eR)) tG>;
+      		};
+		};
+
+* Compile open EV-variable
+* <PatrnEE t.Conf t.gap t.Gaps>
+PatrnEE { tC tg tG, tC : (tA tB tV tM tX tP), tg : (Gap sh (eL ti) (tE eT) (tj eR))
+			/* tE is EV-variable */
+			= <NewVar <Concat "j" <VarIndex tE>>> : sk
+			= <NewVar M> : sm
+			= (For sm (Dcl "int" sk <IAdd ti <MinTermSize tE>>) (Infix <ISub tj sk> <NumTerms eT>) (Inc sk)
+   				<PatrnL <SetCnf <SetCnf tC 
+   					Brs <BrPush tB (Continue sm)>>
+					Var <Apt tV (tE (Sub sh ti sk))>>
+   					(Gap sh (eL ti tE sk) (eT) (tj eR)) tG>
+   			    ) 
+   			  <Break tB>
+   			};
+
+MinTermSize { (E e) = 0; tx = 1 };
+/* MaxTermSize { (E e) = -1; (V e) = -1; tx = 1 }; */
+
+NumTerms eP = <NTerms (EQ) 0 eP>;
+NTerms {
+	tR sN tV eT, tV : {
+		(E sx) = <NTerms (GE)        sN  eT>;
+		(V sx) = <NTerms (GE) <ADD 1 sN> eT>;
+		term   = <NTerms tR   <ADD 1 sN> eT>;
+		};
+	tR sN = tR sN;
+	};
+
+* Check if gap length is large enough
+CheckGapLength { 
+	/* Do not check beforehand in case of EE-pattern */
+	tA tB t1 eR t2, <IsTerm t1>:F, <IsTerm t2>:F = ;
+	tA tB eP = <NumTerms eP> : {
+		(GE) 0 =;
+		t.Op sn = (IfNot (Infix <LengthOfExpr tA> t.Op sn ) <Break tB>) 
+		}};
+
+* Normalize gap - from (Clash...) to (Gap...) format
+ClashToGap { tA tB (eP)
+		/* e-value tA is matched against pattern eP */
+		= <ExpandExpr tA> : e.Code tA1 
+		= tA1 : (Sub sh ti tj) 
+		= e.Code <CheckGapLength tA1 tB eP> ( tA1 (Gap sh (ti) (eP) (tj)) )
+	};
+
+* Compile result expression
+* <Result tB tV tM (eR)> => e.Code t.Res
+*     t.Res - location of evaluated result: (Arr...) or (Sub...)
+
+Result { tB tV tM (eR) = eR : {
+		/* Single EV-variable: no copying */
+*		(sD tx) , <Oneof sD (E V)> : T = <Testvar tV (sD tx)> : (to) = to;
+		/* Single ST-variable: no copying */
+*		(sD tx) , <Oneof sD (T S)> : T = <Testvar tV (sD tx)> : ((Elem sh ti)) 
+*					= (Sub sh ti <IAdd ti 1>);
+		/* Single active term */
+		(R t.RY) = t.RY;
+		/* Pure constant */
+		e1, <IsConstExpr e1> : T = <ConstExpr e1>;
+		e1 tT e2, tT : {
+			/* Function call on top level */
+			(K sF eX), <CONST sF> : F , <IsExtern <FuncName sF>> : F
+				= <Result tB tV tM (eX)> : e.Code t.RX
+				= <SubToArr t.RX> : e.Code1 (Arr s.px)
+				= <Invoke sF s.px tB> : e.Code2 t.RY
+				= e.Code e.Code1 e.Code2 <Result tB tV tM (e1 (R t.RY) e2)>;
+			/* Unknown function call */
+			(K eX) = <Result tB tV tM (e1 (K <DefinedIn APPLY Apply> eX) e2)>;
+			/* Inner expressions in brackets are evaluated beforehand */
+			(P eX), <Testvar	tV (P eX)> : None /* , <IsConstExpr eX>:F -- Constants also fit here, just extra BR (dummy) */
+				= <Result tB tV tM (eX)> : e.Code t.RX
+				= <SubToArr t.RX> : e.Code1 t.RX1
+				= e.Code e.Code1 <Result tB tV tM (e1 (BR t.RX1) e2)>;
+			};
+		e1 = /* Find suitable element in Map (eM) */
+			<MatchingMapElem tM (eR)> : {
+				tp      s.el  0 = <MakeNewExpr tV tM (eR)>;
+				(sh em) s.el s.eq /* take an old expression as a base for the new one */
+							      /* s.eq is the number of equal elements found       */
+					= { s.el : s.eq = (Sub sh 0 (L sh));
+						<NewVar "r">:sr
+						= (Dcl (ExprType) sr (Clone sh)) <UpdateNotEqual sr 0 tV (em) (eR)>
+									(Arr sr);
+					  };
+				};
+		}};
+
+/* sF is a reference symbol */
+Invoke { sF sa tB = <NewVar "r">: sr , <FuncName sF> : s.name 
+		= <CatchNeeded tB> : {
+			T =   (Dcl (ExprType) sr <CatchFail s.name sa (Invoke (Member s.name) (Params sa))>)
+					(Arr sr);
+			F =   (Dcl (ExprType) sr (Invoke (Member s.name) (Params sa))) 
+				  (If (Infix sr (EQ) "null") <Break tB>)
+					(Arr sr) 
+			};
+		};
+
+CatchFail { s.name s.arg t.res = 
+			(Invoke "Trace.Catch" (Params 
+					<ConstTerm <DeclaredIn s.name>>
+					<ConstTerm s.name>
+					s.arg 
+					t.res
+					))
+		};			
+
+CatchNeeded { tB = <Break tB> : { 
+			(Error em) = T; 
+			(Break Error) = <DebugMode>;
+			t = F;
+			}};
+			
+/* Update subexpression with changed terms */
+/* <UpdateNotEqual sh (em) tB tV tM tR> => e.Code t.M1 */ 
+UpdateNotEqual {
+	sh t.off tV (ti ta em) (tb er) = { 
+				ta : tb = ; /* Skip equal elements */
+/*				{t.off : 0; <PRINTLN "Rccompj.UpdateNotEqual: was erroneous assignment of " ta "; t.off= " t.off> } = */
+				(SetElem sh <IAdd t.off ti> <ResultTerm tV tb>);
+				} : e.Code
+			= e.Code <UpdateNotEqual sh t.off tV (em) (er)>;
+	sh t.off tV (ti) () =;
+	};
+
+MakeNewExpr { tV tM (eR) = {
+		
+		<SplitExpr tM (eR)> : {
+				/* A single segment of only equal elements (number of non-equal elements is 0) */
+				/* provided that its length is not 1 or 2 S*/
+				(Segm sh 0 (ti em tj) (er)) = (Sub sh ti tj);
+				eS /* arbitrary list of segments */
+					, eR : e te e, <IsTerm te> : F /* Exists non-term 0-term */
+					= <NewVar "r">:sr
+					= <SplitExprLength eS> : e.Code tL
+					= e.Code (Dcl (ExprType) sr (Newarr (TermType) tL))
+					  <SplitExprCopy tV sr 0 eS>
+					  (Arr sr);
+				};
+		/* All 0-terms are terms */
+		<NewVar "r">:sr 
+			= (Dcl (ExprType) sr <MakeExpr <Map (&ResultTerm tV) eR>> ) (Arr sr);
+		};
+	};
+
+MakeExpr { e.terms = (NewArrInit (TermType) (Terms e.terms)) };
+
+/* <Split tM (eR)> => e.Segments
+ * Splits prepared result expression eR into pieces, 
+ * each being "nearly" continuous in a pattern or a separate expr.
+ * 	tM - Map of patterns matched
+ *	eR - Result expression (with evaluated inner subexpressions)
+ * Each element of eS is either 
+ *		(Sub sh ti tj)
+ *	 or	(Term tt)
+ *	 or	(Segm sh s.ne (em) (er)), 
+ * 			where 
+ *				em is a pattern segment hosted by sh, 
+ *				er is original r-expression.
+ *				s.ne - number of non-equal elements in er
+ */
+SplitExpr {
+	tM () = ;
+	tM (eX), <FindSubexpr tM (eX)> : sh s.eq s.el (em) (er) (eY) 
+			= (Segm sh <SUB s.el s.eq> (<CorrKnownLength em>) (er)) <SplitExpr tM (eY)>;
+	/* None nonempty prefix of eX occurres in a pattern */
+	tM (ta ex), <IsConst ta>:T = <ConstTerm ta> <SplitExpr tM (ex)>;
+	/* Result of evaluating bracket term */
+	tM ((BR (Arr sp)) ex) = (Term (Brac sp)) <SplitExpr tM (ex)>;
+	/* Result of evaluating function call */
+	tM ((R  (Arr sp)) ex) = (Sub sp 0 (Length sp)) <SplitExpr tM (ex)>;
+	};
+
+/* Expression evaluating the length of split expression */
+SplitExprLength {
+		ta ex = <IAdd <SplitElementLength ta> <SplitExprLength ex>>;
+		= 0;
+	};
+	
+SplitElementLength {
+	(Term tt) = 1;
+	(Sub th ti tj) = <ISub tj ti>;
+	(Segm sh s.ne (ti em tj) (er)) = <ISub tj ti>;
+	};
+	
+/* Fills result espression with segments */
+SplitExprCopy { tV sh t.pos eS = eS : {
+		= ;
+		ta es = <IExpToBinom t.pos> : e.Code1 t.pos1
+			  = <SplitElementCopy tV sh t.pos1 ta> : e.Code2 t.pos2
+			  = e.Code1 e.Code2 <SplitExprCopy tV sh t.pos2 es>;
+		}};
+		
+/* Fills result espression with the segment ta */
+SplitElementCopy { tV sh t.pos ta, ta : {
+	(Term tt) = (SetElem sh t.pos (Term tt)) <IAdd t.pos 1>;
+	(Sub sp ti tj) 
+			= (ArrayCopy sp ti sh t.pos <ISub tj ti>) 
+				<IAdd t.pos <ISub tj ti>>;
+	(Segm sp s.ne (ti em tj) (er))
+			/* er contains ev-element or >=3 terms */
+			, er : { e t.ev e, <IsTerm t.ev>:F; t t t e }
+			= (ArrayCopy sp ti sh t.pos <ISub tj ti>)
+					<UpdateNotEqual sh <ISub t.pos ti> tV (ti em tj) (er)>
+					<IAdd t.pos <ISub tj ti>>;
+	/* er contains only term elements (and less than 3 of them) */
+	(Segm sp s.ne (em) (er)) = <SetElems sh t.pos <Map (&ResultTerm tV) er>>
+								<IAdd t.pos <LENGTH er>>;
+	}};	
+
+SetElems {
+	sh t.pos =;
+	sh t.pos ta er = (SetElem sh t.pos ta) <SetElems sh <IAdd t.pos 1> er>;
+	};
+
+ResultTerm {
+	tV (BR ta) = ta : (Arr sh) = (Brac sh);
+	tV tc, <IsConst tc>:T = <ConstTerm tc>;
+	tV tx, <Testvar tV tx> : (to) = to;
+	};
+
+IsTerm {
+	(sd ex), sd:{E;V;R} = F;
+	tx = T;
+	};
+	
+/* Get matching subexpression from Map element */
+/* <GetMatch (em) (er)> => s.ELEMS s.EQ s.EVEQ (e.mRest) (e.rRest)
+ * Find beginning of er that matches a beginning of em
+ * "Matches" mean that each pair of matched elements are either same 
+ * or both are term elements (ie not a ev-variable)
+ * em - subexpr of Map: [ti tA]... tj
+ * er - result (sub)expression
+ * s.ELEMS - total number of elements in the matched segment
+ * s.EQ - number of all equal term elements
+ * s.EVEQ - number of equal non-term (i.e. e- and v-variables) elements
+ * e.mRest - tail of em
+ * e.rRest - tail of er
+ */
+
+GetMatch { (em) (er) = <GetMat 0 0 0 (em) (er)>};
+GetMat { s.ne s.eq s.ev tM tR, tM tR : {
+	(ti ta em) (ta er) = <ADD s.eq 1> : s.eq1
+					   = { <IsTerm ta> : T = s.ev; <ADD s.ev 1> } : s.ev1
+					   = <GetMat s.ne s.eq1 s.ev1 (em) (er)>;
+	(ti ta em) (tb er) , <IsTerm ta> : T, <IsTerm tb> : T
+					   = <ADD s.ne 1> : s.ne1
+			   		   = <GetMat s.ne1 s.eq s.ev (em) (er)>;
+	(em) (er) = <ADD s.ne s.eq>: s.el = s.el s.eq s.ev (em) (er);
+	}};
+	
+/* Select the best totally matching Map element */
+/* different terms are tolerated */
+/* e.mRest and e.rRest should be empty, maximize number of equal elements */
+MatchingMapElem { tM tR = <MaxMatch () 0 0 tM tR> };
+MaxMatch { tp s.el0 s.eq0 (eM) (eR), eM : {
+		/* empty */ = tp s.el0 s.eq0;
+		(sh em) e.M1 = {
+			<IsWholeMapElem sh em>:T,
+			<GetMatch (em) (eR)> : s.el s.eq s.eveq (tj) (),
+				<COMPARE s.eq0 s.eq> : '<' 
+				= <MaxMatch (sh em) s.el s.eq (e.M1) (eR)>;
+			<MaxMatch tp s.el0 s.eq0 (e.M1) (eR)>;
+			};
+		};
+	};
+
+IsWholeMapElem { sh 0 em (L sh) = T; F };
+/*
+IsConst {
+   (P e1) e2 = <IsConst e1 e2>;
+   (e1) e2 = F;
+   sa e1 = <IsConst e1>;
+   = T;
+   };
+*/   
+IsConst {
+	sa = T; /* Dynamic constant may take place here */
+	ea = <IsConstExpr ea>;
+	};
+   
+IsConstExpr {
+   (P e1) e2 = <IsConstExpr e1 e2>;
+   (e1) e2 = F;
+   sa e1, <CONST sa>:F, <IsStaticConst sa> : F = F; 
+   sa e1 = <IsConstExpr e1>;
+   = T;
+   };
+
+IsStaticConst sa = { 
+   			<GETN sa 4> : '*' = F; /* Dynamic constant */
+ 			<GETN sa 2> : ' ' = T; /* Prefix not empty => it's imported constant => it's dynamic constant */
+   			F;
+   			};
+
+/* Find largest subexpression
+ * <FindSubexpr tM (eX)> => sh s.eq s.el (em) (er) (eY)) | Empty
+ *  tM - maps of source expressions
+ *  eX - desired result expression
+ *  em - matched segment of Map element 
+ *  er - beginning of eX matched as em
+ *  eY - tail of eX 
+ *  s.el - number of elements in er
+ *  s.eq - number of elements in er which are equal to respective element in em
+ */
+FindSubexpr { tM (eX) = <SearchMax 0 () tM (eX)> };
+SearchMax { s.eq (e.found) tM (tb ex), {
+  	tM : (e1 (sh e2 ti tb em) e3), <REM <LENGTH e2> 2> : 0,
+		<GetMatch (ti tb em) (tb ex)> : s.el1 s.eq1 s.eveq1 (tj e.m1) (e.r1),
+		<COMPARE s.eq s.eq1> : '<'
+			= ti tb em : e.m0 e.m1 = tb ex : e.r0 e.r1
+			= <SearchMax s.eq1 (sh s.eq1 <TailBack s.el1 (e.m0) (e.r0) (e.r1)>) tM (tb ex)>;
+	e.found;
+	}};
+
+* Delete tail non-equal terms
+TailBack { eA : s.el (em ta tj) (er tb) (eY), {
+		ta : tb = eA;
+		<SUB s.el 1> : s.el1 = <TailBack s.el1 (em) (er) (tb eY)>;
+		}};
+
+* Correct end index if it is known
+CorrKnownLength {
+	em ti tv tj, <IsTerm tv>:T = <IAdd ti 1>:tk = em ti tv tk;
+	em = em;
+	};
+  
+Oneof { 
+   sA (e1 sA e2) = T;
+   sA (e1) = F;
+   };
+
+Apt { (eT) eA = (eT eA); };
+
+//$EXEC TRACE IsStaticConst;

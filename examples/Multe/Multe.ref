@@ -1,0 +1,6 @@
+$ENTRY 
+Multe {
+    0 ea = ;
+    sn ea = ea <Multe <SUB sn 1> ea>;
+    };
+    

@@ -1,0 +1,422 @@
+/************************************************************************/
+/*  R E F A L - 6       Copyright (C) 1992 by Arkady Klimov             */
+/*       rcout.ref  - output rasl code to file or to memory             */
+/************************************************************************/
+$package org.refal.j.compiler;
+
+$EXTBOX Ftable, Extern, Modname;
+
+$EXPORT CompFile, DeclaredIn, DebugMode;
+
+$FROM Rccompj $IMPORT Compile,InitMod,ConstDcls,ConstTerm,
+                      ExtrnDecl,ReferNew,OutVar,GetStaticBlocks;
+$FROM Rssynj  $IMPORT GetAttr,PublicAttr, IsExtern;
+$FROM Rcmainj $IMPORT Swap;
+$FROM Rsserv  $IMPORT WNG,Flag;
+//$EXTERN Map, App, APPEND;
+
+$TABLE UsedLabs; /* Table to control spare blocks */
+$STRING   FName;
+
+Line ea = <PRINTLN! 4 ea>;
+
+/* Compile to file */
+CompFile { eP = <InitMod> 
+                     = <CompDcls eP> 
+                };
+                
+CompExtrns { ea = <App &CompExtrn ea> };
+CompExtrn { sf = <Emit <ExtrnDecl sf>> };
+
+CompDcls { eP = <App &CompDcl eP>};
+CompDcl {
+    (Func sF eB)    = <MAKE TABLE &UsedLabs> <Emit <Compf sF eB>> =;
+    (Var  sT sF eA) = { sT: {EXEC; CONST}; <Line >;} = <Emit <OutVar sT sF (eA)>> =;
+    (Module t.Ext t.Tbl e.Prog)
+        = <Swap *Ftable t.Tbl> : t.Tbl1
+        = <Swap *Extern t.Ext> : t.Ext1
+        = <EmitHeader Package e.Prog >:e.Prog1
+        = <Line "import org.refal.j.*;">
+        = <EmitHeader Import  e.Prog1>:e.Prog2
+        = <Line "public class " <ClassName> " {">
+        =  <CompExtrns <GETV &Extern>>
+        =  <CompDcls e.Prog2>
+        =  <Line>
+        =  <Emit <ConstDcls>> 
+        =  <Emit <GetStaticBlocks>>
+        = <Line "}">
+        = <Swap *Ftable t.Tbl1>
+        = <Swap *Extern t.Ext1>
+        = ;
+    };
+
+Emit { eP = <Flag 'A'> : {
+        sx    = <Unpars "  " eP>;
+        (e) = <PPExpr "  " eP>;
+        }};
+
+PPExpr { ti eP = <App (&PPTerm ti) eP> };
+PPTerm { t.in t.st, t.st : {
+        (Function t.mods s.name t.pars t.res e.sts)
+            = <Line t.in "(" <ShowExpr Function t.mods s.name t.pars t.res>>
+            = <PPExpr <Indent t.in> e.sts>
+            = <Line t.in ")">;
+        (Block s.lab e.sts)
+            = <Line t.in "(" <ShowExpr Block s.lab>>
+            = <PPExpr <Indent t.in> e.sts>
+            = <Line t.in ")">;
+        (For s.lab t.init t.cond t.inc e.sts)
+            = <Line t.in "(" <ShowExpr For s.lab t.init t.cond t.inc e.sts>>
+            = <PPExpr <Indent t.in> e.sts>
+            = <Line t.in ")">;
+        ts  = <Line t.in <ShowExpr ts>>;
+    }};
+    
+ShowExpr { ex = <ENCODE 0 ex> };
+
+EmitHeader { 
+    sD e1 (sD ex) e2 = <Line <Unp (sD ex)>> <EmitHeader sD e1 e2>;
+    sD e1 = e1;
+    };
+
+ClassName { = <IMPLODE <UnPackage <GETV &Modname>>> };
+UnPackage { 
+    e1 '\\' e2 = <UnPackage e2>;
+    e1 '/' e2 = <UnPackage e2>;
+    e1 = e1;
+    };
+
+FullModuleName { = <IMPLODE <Map &SlashToDot <GETV &Modname>>> };
+SlashToDot { 
+    '\\' = '.';
+    '/' = '.';
+    sx = sx;
+    };
+
+Compf sf eB = <NAME sf> : s.name 
+            = <SET &FName s.name>
+            = <Function s.name <CompBody eB>>;
+
+Function { s.name e.sts
+            = (Params (ParDcl (ExprType) "a")) : t.pars
+            = (Function 
+                    (Mods <PublicAttr s.name> Static) s.name t.pars (Result (ExprType))
+                    e.sts
+                )
+        };
+        
+CompBody { e.body
+            = <DebugMode> : {
+                    T = <ConstTerm <FullModuleName>> 
+                        <ConstTerm <GET &FName>>
+                        "a"
+                         : e.args =
+                        ((Stmt <CallFunc "Trace.Begin" (e.args)>))
+                        ((Return <CallFunc "Trace.End" ("result")>))
+                        ((Return <CallFunc "Trace.Fail" ()>))
+                        ((Return <CallFunc "Trace.Error" (e.args)>));
+                    F = () 
+                        ((Return "result")) 
+                        ((Return "null")) 
+                        ((Error "Unexpected fail"));
+                    } : (e.begin) 
+                        (e.end) 
+                        (e.fail)
+                        (e.error)
+            = e.begin
+              (Block Error
+                (Dcl (ExprType) "result")
+                (Dcl "int" (L "a") (Length "a"))
+                (Block Fail
+                  (Block Norm
+                    <Compile e.body>
+                  )
+                  e.end
+                )
+                e.fail
+              )
+              e.error
+        };
+
+CallFunc { t.name (e.args) = (Invoke t.name (Params e.args)) };
+
+DebugMode { = <Flag 'D'> : { (e) = T; F }};
+
+*Unpars { ti ex = <Map (&Unpar ti) ex> };
+
+Unpars { 
+    t.in =;
+    t.in t.st ex, t.st : {
+        (Function t.mods s.name t.pars t.res e.sts)
+            = <DefSymbolFunc t.in t.mods s.name t.pars t.res>
+            = <Line >
+            = <DefFunc t.in t.mods s.name t.pars t.res e.sts>
+            = <Unpars t.in ex>
+            = ;
+        (Block s.lab e.sts)
+            = <Line t.in <DefLab s.lab> " {"> 
+            =   <Unpars <Indent t.in> e.sts>
+            = <Line t.in "}" <CommLab s.lab>>
+            = <UnparsChk t.in t.st ex>
+            = ;
+        (StaticBlock e.sts)
+*           = <Line>
+            = <Line t.in "static { try {"> 
+            =   <Unpars <Indent t.in> e.sts>
+            = <Line t.in " } catch (Exception e) { e.printStackTrace(); throw new ExceptionInInitializerError(e); } }">
+            = <Unpars t.in ex>
+            = ;
+        (For s.lab t.init t.cond t.inc e.sts)
+            = <Line t.in <DefLab s.lab> " for (" <Str t.init> /* ";" */ " " <Str t.cond> "; " <Str t.inc>") {">
+            =   <Unpars <Indent t.in> e.sts>
+            = <Line t.in "}" <CommLab s.lab>>
+            = <UnparsChk t.in t.st ex>
+            = ;
+        ts  = <Line t.in <Str ts>>
+            = <Unpars t.in ex>
+            = ;
+    }};
+
+UnparsChk { t.in t.st ex = {
+            <ExitExists t.st> : F, ex:# // Not empty
+                = t.st : (sD sL e) = { 
+                    sL : {Error;Fail} =;
+                    <WNG "Removed inaccessible statements after " 
+                        sD ' ' sL " in function " <GET &FName>> =;
+                    };
+            = <Unpars t.in ex> =
+            }};
+
+ExitExists {
+    e (Return   ex) = F;
+    e (Throw    ex) = F;
+    e (Break    ex) = F;
+    e (Continue ex) = F;
+    e (Block s.lab        e.sts) = { <UsedLab s.lab> : T; <ExitExists e.sts> };
+    e (For s.lab ti tc tn e.sts) = { <UsedLab s.lab> : T; <ExitExists e.sts> };
+    e = T;
+    };
+            
+DefFunc { t.in t.mods s.name t.pars t.res e.sts
+        = <JavaIdent s.name> : s.jname
+        = <Line t.in <Str t.mods> <Str t.res> s.jname <Str t.pars> " throws Exception {">
+        =   <Unpars <Indent t.in> e.sts>
+        = <Line t.in "}" <Comm s.name>>
+        = <DefMain t.in t.mods s.name>
+        = };
+        
+DefMain {
+    t.in (Mods e Public e) Main = <Line >
+        = <Line t.in "public static void main(String[] args) throws Exception { Main(args); }">;
+    e =;
+    };
+
+DefSymbolFunc { 
+    t.in t.mods s.name t.pars t.res, <DefSymbolFuncNeeded s.name> : T
+        = <JavaIdent s.name> : s.jname
+        = <Line >
+        = <Indent t.in > : t.in1
+        = <Indent t.in1> : t.in2
+        = <Unpars t.in <ReferNew s.name>>
+        = <Line t.in  "static { Reference.defineReferable(" s.jname ",">
+        = <Line t.in1 "new org.refal.j.Function(" <Quote <FullModuleName>"."s.jname> ") {">
+        = <DefFunc t.in2
+                (Mods Public) 
+                "eval" 
+                (Params (ParDcl (ExprType) "e")) 
+                (Result (ExprType))
+                    (Return (Invoke s.jname (Params "e")))
+          >
+        = <Line t.in1 "});">
+        = <Line t.in "}">
+        = ;
+    e =;
+    };
+
+DefSymbolFuncNeeded { sf = { 
+    <GetAttr 3 sf> : '*' = T;
+    <GetAttr 1 sf> : Public = T;
+    <IsExtern sf>;
+    }};
+
+Unp {
+    (Package ex) = "package " ex;
+    (Import ex) = "import " ex;
+    (Dcl s.typ s.name) = s.typ ' ' s.name ";";
+    (Dcl s.typ s.name s.init) = s.typ ' ' s.name " = " s.init ";";
+    (ExprType) = "Object[]";
+    (TermType) = "Object";
+    (ReferType) = "Object";
+    (Assign s.var s.exp) = s.var " = " s.exp ";";
+    (SetElem s.var s.ind s.exp) = s.var "[" s.ind "] = " s.exp ";";
+    (If    s.exp s.st) = "if ( "  s.exp " ) " s.st;
+    (IfNot s.exp s.st) = "if (!( " s.exp " )) " s.st;
+    (Inc sa) = sa "++";
+    (Length s.a) = s.a ".length";
+    (L s.a) = "l" s.a;
+    (Infix s1 s.op s2) = s1 s.op s2;
+    (Elem sa si) = sa "[" si "]";
+    (Term sa) = sa;
+    (Terms ea) = <Params ea>;
+    (Cont sa) = "(Object[])" sa;
+    (Brac sa) = sa;
+    (Cast st sx) = "(("st")"sx")";
+    (Clone sa) = "(Object[]) " sa ".clone()";
+    (IExp e.pos s.neg s.off) = <PlusNumber <Sum e.pos> s.neg s.off>;
+    (Minus es) = <Map &Minus es>;
+    (Break s.lab)    = <UseLab s.lab> = "break " s.lab ";";
+    (Continue s.lab) = <UseLab s.lab> = "continue " s.lab ";";
+    (ArrayCopy ea) = "System.arraycopy("<Params ea>");";
+    (IsSymb sa) = "!("sa" instanceof Object[])";
+    (IsBrac  sa) = "("  sa" instanceof Object[])";
+    (TermsEqual s1 s2) = <Runtime "termsEqual"> "("<Params s1 s2>")";
+    (ExprsEqual ea) = <Runtime "exprsEqual"> "("<Params ea>")";
+    (Newarr s.typ s.len) = "new "s.typ"["s.len"]";
+    (NewArrInit s.typ s.init) = "new "s.typ"[]{" s.init "}";
+*   (NewObj s.typ s.name) = "Term.make(" <Quote s.typ> "," <Quote s.name> ")";
+    (NewObj s.typ) = "Reference.make(" <Quote s.typ> ")";
+*   (ExtObj s.typ s.name) = "Term.getExternal("<Quote s.name>")";
+    (ExtRefer s.name) = "Term.getExternal("<Quote s.name>")";
+    (NewRefer s.name) =    "new Reference("<Quote s.name>")";
+    (ParDcl s.typ s.name) = s.typ ' ' s.name;
+    (Params ea) = "(" <Params ea> ")";
+    (Mods em) = <Map &Modif em>;
+    (Result s.typ) = s.typ " ";
+    (Invoke s.name s.pars) = s.name s.pars;
+    (InvokeMethod s.obj s.name s.pars) = s.obj "." s.name s.pars;
+    (InvokeStatic s.cls s.name s.pars) = s.cls "." s.name s.pars;
+    (Member s.name) = <JavaName s.name>;
+    (Return s.res) = "return " s.res ";";
+    (Error e.msg) = "throw new org.refal.j.Error(" <Quote e.msg> ");";
+*   (SymbDcl s.name s.value)        = "private static final Object "   s.name " = " <CreateSymbol s.value> ";";
+*   (ExprDcl s.name s.value e.comm) = "private static final Object[] " s.name " = new Object[] {" s.value "};" <Comm e.comm>;
+    (MakeSymbol s.value) = <CreateSymbol s.value>;
+    (Field s.mods s.name s.typ s.value e.comm) 
+            = s.mods s.typ " " s.name " = " s.value ";" <Comm e.comm>;
+    (Field s.mods s.name s.typ) = s.mods s.typ " " s.name ";";
+    (Stmt s.expr) = s.expr ";";
+    (GE) = ">=";
+    (GT) = ">";
+    (LE) = "<=";
+    (LT) = "<";
+    (EQ) = "==";
+    (NE) = "/=";
+    sx = sx;
+    };
+    
+CreateSymbol { sa = <CONST sa> : {
+    /* Symbol-reference */
+        F = <JavaName <NAME sa>>;
+        T = <MODE sa> : {
+            CHAR = "new Character(\'"<Encode sa>"\')";
+            MASK = "Arithm.valueOf(" <Quote sa> ")";
+            REAL = "new Double(" sa ")";
+            STRING = <Quote sa>;
+        }}};
+    
+PlusNumber { 
+    sn = sn;
+    e1 0 = e1;
+    e1 sn = <COMPARE sn 0> : {
+        '<' = e1 '-' <SUB 0 sn>; 
+        sb  = e1 "+" sn;
+        };
+    };
+    
+Sum {
+    =;
+    sa = sa;
+    sa eb = sa "+" <Sum eb>;
+    };
+    
+Minus { sa = "-" sa };
+
+Params {
+    =;
+    sa = sa;
+    sa eb = sa ", " <Params eb>;
+    };
+
+Modif {
+    Public = "public ";
+    Static = "static ";
+    Private= "private ";
+    Final  = "final ";
+    ' '    = "private ";
+    sa = sa;
+    };
+    
+Strs { es = <Map &Str es> };
+
+Str { 
+    (sD es) = <TO_WORD <Unp (sD <Strs es>)>>;
+    sx = <Unp sx>;
+    };
+
+ToString { ea = <TO_WORD ea> };
+
+Indent { ti = <APPEND ti '  '> };
+
+DefLab { 
+    " " =;
+    sm = sm":" 
+    };
+
+UseLab {  s.lab =   <TABLE_VALUE &UsedLabs 'U' s.lab> };
+UsedLab { s.lab = { <TABLE_VALUE &UsedLabs 'O' s.lab>:sr = T;F }};
+
+/* Class name for run-time library */
+Runtime { sn = <ToString "Lang." sn> };
+
+JavaName { sn = <GetAttr 2 sn> : { 
+    ' '           =           <JavaIdent sn>; 
+    s.cls         = s.cls "." <JavaIdent sn>;
+    (s.cls s.mtd) = s.cls "." s.mtd;
+    }};
+
+JavaIdent { sn = <IMPLODE <ToJavaIdent <EXPLODE sn>>> };
+ToJavaIdent { es = <Map &JavaIdentSymbol es> };
+JavaIdentSymbol {
+        '!' = '_X';
+        '?' = '_Q';
+        '-' = '_';
+        sx  = sx;
+        };
+
+DeclaredIn { sn = <GetAttr 2 sn> : { 
+    ' ' = <FullModuleName>; 
+    sc  = sc;
+    (sc sm) = sc;
+    }};
+    
+Quote { ex = '"' <Map &Encode <TO_CHARS ex>> '"' };
+
+Encode {
+    '\"' = '\\\"';
+    '\'' = '\\\'';
+    '\\' = '\\\\';
+    '\n' = '\\n';
+    '\t' = '\\t';
+/*  '\v' = '\\v'; // No vert.tab. in Java */
+    '\b' = '\\b';
+    '\r' = '\\r';
+    '\f' = '\\f';
+    sa = <ORD sa>:sn = {
+        <COMPARE sn  32> : '<' = '\\' <Digits 3 8 sn>;
+        <COMPARE sn 128> : '<'= sa;
+*       <COMPARE sn 256> : '<' = '\\' <Digits 3 8 sn>;
+        '\\u' <Digits 4 16 sn>;
+        };
+    };
+    
+Digits {
+    0  sr sn = ;
+    sd sr sn = <Digits <SUB sd 1> sr <DIV sn sr>> <Digit <TO_CHARS <REM sn sr>>>;
+    };
+Digit {
+    sd = sd;
+    '1' sd = <CHR <ADD <ORD 'A'> <NUMB sd>>>;
+    };
+    
+Comm    { =; ex = " /* "ex " */" }; 
+CommLab { ex = <Comm ex":"> };

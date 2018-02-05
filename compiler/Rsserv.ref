@@ -1,0 +1,96 @@
+************************************************************************
+*  R E F A L - 6     Copyright (C) 1992 by Arkady Klimov               *
+*      REFAL-C compiler module:                                        *
+*             rsserv.ref  - service functions                          *
+************************************************************************
+$package org.refal.j.compiler;
+
+$EXTBOX Lineno, Errfl, Modname, Typename, Len;
+
+$EXPORT SWAP, Addl, ERR, ERR0, WNG;
+$EXPORT Flag, PathPrefix, Inp, Inpa, Setflags;
+$EXPORT Ptime, CLOAD, ERASE, Open, Oneof;
+
+$BOX    Flags;
+*
+WTR tx ea = <SETV tx ea> =;
+GTR tx    = <GETV tx   >;
+CPR tx    = <GETV tx   >;
+SWAP sV eX = <GTR sV> <WTR sV eX>;
+Addl { sx e1 = <WTR sx <GTR sx> e1>; };
+*
+ERR { e1 = <WTR &Errfl T> <ERR1 "ERROR" e1>; };
+ERR0 { e1 = <WTR &Errfl T> <PRINTLN! 2 e1>; };
+WNG { e1 = <ERR1 "WARNING" e1>; };
+*
+ERR1 {
+   sT ((sL sP)) e1 = <ERR2 (sT sL sP) e1>;
+   sT (ex) e1 = <ERR2 (sT <CPR &Lineno> <SUB <CPR &Len> <LENCONT (ex)>>) e1>;
+   sT e1 = <ERR2 (sT <CPR &Lineno> 0) e1>;
+   };
+ERR2 { (sT sL sP) e1 = <ERR3 <Flag 'L'>
+     "*** "<PathPrefix InDir> <CPR &Modname>"."<CPR &Typename>
+             "(" sL ", "sP"): "sT": "e1>; };
+ERR3 {
+   (eZ) e1 = <PRINTLN e1> <Plist e1>;
+   tZ e1 = <PRINTLN e1>;
+   };
+*
+
+Flag { sF = <Flag1 sF <CPR &Flags>>; };
+Flag1  {
+     sF (sF eV) e2 = (eV);
+     sF (sX eV) e2 = <Flag1 sF e2>;
+     sF = F;
+     };
+*
+PathPrefix { 
+    sk, <Flag sk> : (ed) = ed "/";
+    sk = ;
+    };
+*
+Inp { =  <Inpa <GetLst 12>>; };
+Inpa { tA, <WTR &Lineno <ADD <GTR &Lineno> 1>> , tA : {
+   0 = 0;
+   (s1  e2) = <WTR &Len <LENCONT tA>> <CPR tA>;
+   () = <Inp>;
+}; };
+*
+OutLst { eA , <Flag 'L'> : {
+   sZ = eA;
+   (eZ) = eA <Plist eA>;
+}; };
+*
+Setflags { =; eA = <WTR &Flags eA>; };
+*
+Plist { eX = <PRINTLN! 5 eX>; };
+
+GetLst { sC , <EOF sC> : {
+       F , <READ_LINE! sC> : { , <EOF sC>:T = 0; eA = (<OutLst eA>); };
+       T = 0;
+};     };
+*
+
+Ptime sT tF = <CSeconds> <APPLY tF> <CSeconds> : sB eP sE =
+     <PRINTLN sT <Tosec <SYMB <SUB sE sB>>> " seconds"> = eP;
+
+Tosec {
+   e1 s2 s3 s4 = e1 s2 '.' s3 s4;
+   e1 = <Tosec '0' e1>;
+   };
+
+CSeconds { = <TIME_ELAPSED> };
+
+CLOAD { sF tM , <MODE sF> : {
+    EMPTY = <LOAD tM>;
+    sZ = ;
+};  };
+
+/* CLOSE { e1 = <CLOSE_CHANNEL e1> }; */
+ERASE { e1 = <ERASE_FILE e1> };
+Open { sM sC eN = { <OPEN sC eN sM>: sC = T; F }};
+
+Oneof {
+   sA (e1 sA e2) = T;
+   sA (e1) = F;
+   };

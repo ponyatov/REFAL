@@ -1,0 +1,7 @@
+$ENTRY Main ea = <BOX ea>;
+
+BOX B 'a';
+
+$From M $import Y;
+$Extern Y;
+X ea = <Y ea>;

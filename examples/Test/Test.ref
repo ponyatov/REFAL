@@ -1,0 +1,45 @@
+$export G;
+
+$extern F;
+
+F {
+    e1 sa e2 = e2 e1;
+    sa (e1) e2 sb = <PRINTLN sa e1 e2>;
+    };
+
+G {
+        e1 = <G (e1)>;
+        sa (e1) e2 sb = (e1) (e2);
+        };
+/*
+FG {
+        sa (e1) e2 sb e3, <TYPE sb> : L et = sa e1 e2;
+        sa (e1) e2 sb e3, <TYPE sb> : D et = (e1) e2 e1;
+};
+*/
+T   {
+    s1 s2 e3 s4 s5: sa eb sc = s1 eb s1;
+    (s1 e2 (ex) e3) (ex) e2 s1 e4 = ((ex) s1 e2 (e3) e4) s1 e2 (e3) e4;
+    (s1 e2 (ex) e3) e2 s1 e4 = s1 e2 (ex) e3;
+    (e1) = e1;
+    e._1 = e._1;
+    ex sa sb = ex (ex) (ex);
+    };
+    
+A { e1 s2 (e3), s2 : {A;B} = e3 };
+
+$ENTRY FF {
+    A e1 (e2 B) = e2 B e1 (e2 B) (e2 A e1) (e2 *A);
+    e1 s2 s3 s2 = s2 s3 s2 e1;
+    e1 s2 s3 s4   = s2 s3 s4 : ea sb ec sb ed = (ea sb ec sb ed) <FF s2 s3 e1 s4>;
+};
+
+Fab {
+    e1 'A' e2 = e1 'B' <Fab e2>;
+    e1 = e1;
+    };
+    
+Fabnx {
+    e1 'A' e2 = <Fabnx e1 'B' e2>;
+    e1 = e1;
+    };

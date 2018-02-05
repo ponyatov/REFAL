@@ -1,0 +1,18 @@
+/**************************************************************
+ *      The factorial functions                               * 
+ *   Compile it by 'rfcjavac Fact' and run by 'rfask Fact'    *
+ *   FACT - recursive (linear stack) factorial                *
+ *   FACT1 - divide-and-conquer (logarithm stack) factorial   *
+ **************************************************************/
+
+$ENTRY FACT e1 = <Fact e1>;
+Fact {
+  0 = 1;
+  s1 = <MUL s1 <Fact <SUB s1 1>>>;
+  };
+$ENTRY DAC s1 s2 = <Dac s1 s2>;
+Dac {
+   s1 s1 = s1;
+   s1 s2, <DIV <ADD s1 s2> 2> : sm = <MUL <Dac s1 sm> <Dac <ADD sm 1> s2>>;
+   };
+$ENTRY FACT1 s1 = <DAC 1 s1>;

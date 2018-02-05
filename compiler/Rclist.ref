@@ -1,0 +1,65 @@
+************************************************************************
+*  R E F A L - 6  Copyright (C) 1992 by Arkady Klimov                  *
+*  REFAL-RASL compiler module:                                         *
+*        rclist.ref - list of built-in functions                       *
+************************************************************************
+$package org.refal.j.compiler;
+
+$EXPORT Inifls, Usefls, Builtcd;
+
+$FROM Rsserv $IMPORT ERR, Flag, Open;
+
+$BOX Funlist;
+$CHANNEL Ci;
+
+* Read list of functions from list of files
+Reads {
+ tN eX = <Readfls 10 <St-ext <GETV tN>>> <Reads eX>;
+ =;
+ };
+
+St-ext {
+   e1 '.' e2 = e1 '.' e2;
+   e1 = e1 '.rfi';
+   };     
+
+Readfls {
+   0 en = <ERR "No file " en>;
+   sN en , <Open R &Ci en> : { 
+      T =  <Inpall &Ci> <CLOSE &Ci>;
+      F = <Readfls <SUB sN 1> en>;
+   }; };
+
+Valfls sF = <TABLE_VALUE &Funlist 'U' sF> ;
+Inifls e.dflt = <MAKE TABLE &Funlist> = <Loadfls <Reads <Flsname e.dflt>>> ;
+Usefls en = <Loadfls <Reads en>>;
+
+Flsname e.dflt = <Flag 'B'> : {
+     sF, {e.dflt: = ('builtin.fls'); (e.dflt) };
+     () = ;
+     (en) = (en);
+     };
+Inpall  sC , <READLN! sC> : {
+    = ;
+    eX = eX <Inpall sC>;
+    };
+
+* This function is used in REFAL - RASL Compiler to test externals
+* The result is C-function name
+Builtcd  sF , <Valfls sF> : sR = <Lookup <GETV sR>>;
+Lookup {
+  (sT sF tA) eX , tA : {
+            (Java sM (Class sC)) = (sC sM);
+            (sC sW eY) = sW; 
+            };
+  tA eX = <Lookup eX>;
+  = '*';
+  };
+
+Loadfls { ex = <App &Loadfn ex> 
+/*         <WRITELN <GETV &Funlist>>; */
+};
+Loadfn {
+   (sT sF eA), sT: {Func;Ref} = <Valfls sF> : sR = <SETV sR (sT sF eA) <GETV sR>> = ;
+   (sF eA) eX = <Loadfn (Func sF eA)>;
+   };

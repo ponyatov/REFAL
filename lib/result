@@ -1,0 +1,6 @@
+(BOX A *A) (MASK N *N) (STRING S *S) (REAL R *R) (TABLE T *T)
+'Expr=' *A=((BOX A *A) (MASK N *N=17) (STRING S *S="abc\n\tdef") (REAL R *R=3.14) (TABLE T *T=T4(A *A ZZZ *ZZZ=((BOX A *A) (MASK N *N) (STRING S *S) (REAL R *R) (TABLE T *T)))))
+T 'Expr=' *A
+'Expr=' *A=((BOX A *A) (MASK N *N=17) (STRING S *S="abc\n\tdef") (REAL R *R=3.14) (TABLE T *T=T4(A *A ZZZ *ZZZ=((BOX A *A) (MASK N *N) (STRING S *S) (REAL R *R) (TABLE T *T)))))
+PASSED
+Result CHAIN VECTOR MASK STRING REAL TABLE

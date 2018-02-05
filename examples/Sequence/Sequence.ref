@@ -1,0 +1,37 @@
+/*
+	
+Takes the command line arguments as sequence of symbols
+and removes iteratively each 2 adjacent equal subsequences:
+        ___          _______
+c a b a d d b d -> c a b a b d -> c d
+
+Note: we use Rev here to emulate right-to-left pattern matching
+with which the code would be:
+
+PurgeEqual {
+    e1 e2, e2: $r v3 v3 e4 
+        = <PRINTLN v3> 
+	= <PurgeEqual e1 e4>;
+    e1 = e1;
+}
+
+*/
+
+
+$export Main;
+
+$ENTRY PurgeEqual {
+    e1 e2, <Rev e2>: e4 v3 v3 
+        = <PRINTLN <Rev v3>> 
+        = <PurgeEqual e1 <Rev e4>>;
+    e1 = e1;
+};
+
+Rev {
+    =;
+    ta eb = <Rev eb> ta;
+    };
+
+Main e1 = <PRINTLN <PurgeEqual e1>>;
+
+$EXEC TRACE PurgeEqual;
