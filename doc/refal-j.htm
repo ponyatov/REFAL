@@ -1,0 +1,307 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1251">
+<meta name="GENERATOR" content="Microsoft FrontPage 4.0">
+<meta name="ProgId" content="FrontPage.Editor.Document">
+<title>Refal-Java</title>
+<meta name="Microsoft Border" content="t, default">
+</head>
+
+<body><!--msnavigation--><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td>
+
+<nobr>[&nbsp;<a href="manual.htm">Back</a>&nbsp;]</nobr> <nobr>[&nbsp;<a href="index.html">Up</a>&nbsp;]</nobr>
+
+</td></tr><!--msnavigation--></table><!--msnavigation--><table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><!--msnavigation--><td valign="top">
+
+<p align="left">&nbsp;</p>
+<h1 align="center">REFAL-JAVA</h1>
+<blockquote>
+  <blockquote>
+    <blockquote>
+      <blockquote>
+<p align="center"><font face="Verdana">The programming language Refal&nbsp;<br>
+ implemented on top of the<br>
+&nbsp; 
+<a href="http://java.sun.com">Java<sup class="small">TM</sup>2 Platform</a>.</font>
+      </blockquote>
+    </blockquote>
+  </blockquote>
+</blockquote>
+<h2 align="left">Authors</h2>
+<p align="left">Refal-Java was designed and implemented by Arkady Klimov and
+Andrei Klimov. Please send comments, suggestions and bug reports to <a href="mailto:arkady.klimov@supercompilers.com">arkady.klimov@supercompilers.com</a>.
+<p align="left">See the file <a href="copying.txt">copying.txt</a> for copying
+permission.
+<h2 align="left">Sponsors</h2>
+<p align="left">The developement is sponsored by <a href="http://www.avicomp.ru/eng/">AviComp</a>.
+<h2 align="left">Background</h2>
+<p align="left">The language <a href="http://www.refal.net"> Refal</a> (REcursive Functions
+Algorithmic Language)
+has been developed in Soviet Union by dr. Valentin Turchin since 1960s.
+The main intention was to use it as a basis for developing various program
+analysis and transformation tools. The most intriguing was the idea of their
+self-application, which implied the following two conflicting requirements for
+the language:</p>
+<ul>
+  <li>
+    <p align="left">it must be simple enough to simplify algorithms
+    which analyse and transform programs written in it</li>
+  <li>
+    <p align="left">it must be rich and expressive enough to simplify
+    writing these algorithms in it</li>
+</ul>
+<p align="left">The idea of <a href="http://www.supercompilers.com">supecompilation</a>
+as a global program optimizer was invented (by V.Turchin) and first tested in
+the context of Refal.</p>
+<p align="left">In the 70-s the most popular implementation was Refal-2. During
+80-s the language has been heavily revised and the three different
+implementations and dialects have been emerged:&nbsp;</p>
+<ul>
+  <li>
+    <p align="left"><a href="http://botik.ru/pub/local/scp/refal5/refal5.html">Refal-5</a> (by V. and D. Turchin, New York),&nbsp;</li>
+  <li>
+    <p align="left"><a href="index.html">Refal-6</a> (by N.Kondratiev and Ark.Klimov, Moscow)&nbsp;</li>
+  <li>
+    <p align="left"><a href="http://glade.nmd.msu.ru/~pooh/refal-plus.html">Refal Plus</a> (by S.Romanenko and R.Gurin, Moscow)</li>
+</ul>
+<p align="left">These versions have much in common while differ in some syntax
+details, modularity and sets of built-in functions. The first two (R5 &amp; R6)
+are essentially interpreters, in the sence that Refal is compiled into an
+intermediate language (so-called RASL - Refal ASsembly Language) which is then
+executed by an interpreter - a special exe-program written in C. The latter
+version (R+) is essentialy a compiler, as the source code is compiled (directly
+or thru C) to native machine code.</p>
+<p align="left">However all these three versions have a common drawback: they
+are rather isolated from the outer world, other popular programming languages
+and libraries, such as Fortran, Paskal, C, C++ etc. It can be partly justified
+by the fact that both computational and data models of Refal are essentially
+functional and thus differ much from the models of those imperative languages.</p>
+<p align="left">The last decade (1994-2003) in computer world was enaugurated by
+the emergence of the language Java - a highly portable general purpose
+object-oriented language. Nowadays Java became a platform for a large amount of
+world-wide applications.
+<p align="left">Inspite of the fact that Java has inherited most of imperative
+(procedural) features of its predecessors, the Java computational and data
+models has noticeably evolved to become more close to the functional ones. To be
+more positive, this can be witnessed by the following features:&nbsp;
+<ul>
+  <li>
+    <p align="left">fields and variables may be declared final</li>
+  <li>
+    <p align="left">parameters are passed only &quot;by value&quot;</li>
+  <li>
+    <p align="left">no pointers but object references</li>
+  <li>
+    <p align="left">automated garbage collection</li>
+  <li>
+    <p align="left">higher level safe data model</li>
+  <li>
+    <p align="left">safe (due to verification) program code</li>
+</ul>
+<p align="left">Thereby there were at least two arguments in favour of
+implementing Refal on top of Java:</p>
+<ul>
+  <li>
+    <p align="left">much of needed runtime support already exists in Java
+    runtime support</li>
+  <li>
+    <p align="left">Java<sup class="small">TM</sup>2 Platform
+    includes a large amount of valuable libraries (APIs) which will be easily
+    accessible from Refal</li>
+</ul>
+<h2 align="left">Why Java needs Refal</h2>
+<p align="left">So far we have been talking about why Java is a benefit <i> for</i> Refal. Now we'll
+address the inverse issue: why and what can Java in its turn benefit <i> from</i> Refal.</p>
+<p align="left">There are 2 unique features of Refal which are absent in almost
+all other languages:</p>
+<ul>
+  <li>
+    <p align="left">View-oriented data model</li>
+  <li>
+    <p align="left">Pattern-oriented computational model</li>
+</ul>
+<p align="left">Both can be viewd as opposed to object-oriented (OO) model of
+data and computations. In OO programming data are abstract objects which can be
+accessed (preferably) only via sets of functions, or methods. You see your data
+only through the prizm of their interfaces. This has many well-known benefits,
+however it prevents you from seeing your data directly as they are. In Refal
+data are expressions as they are written on the paper, with familiar parenthesis
+notation for representing trees. They are nothing more than what you see: What-You-See-Is-What-You-Get. May be it is not as good for program
+decomposition, incapsulation, code reuse etc., but very often within certain
+components this is just what you need, as it allows to grasp the whole model
+with one glance.</p>
+<p align="left">Pattern-orientedness is another powefull feature which is
+tightly connected with previous one. It has two aspects: pattern matching as a
+basis and pattern composition algebra.</p>
+<p align="left">Basically, patterns are abstractions of data views: you take an
+arbitrary data (or object) expression, which is essentially a tree list and
+replace some of its subexpressions with variables. We use different
+sorts of variables depending of structural category of respective
+subexpression: leave (symbol), branch (term) or branchlist (expression). Equal
+variables denote equal parts. Pattern matching is a kind of predicate which
+tests whether given pattern can be obtained as abstraction of a given data
+expression. As a side effect in case of true we also get some positive result: a
+list of bindings where pattern variables are bound with matched parts of the
+expression. Since variables may be lists the pattern match may imply search.</p>
+<p align="left">Another important aspect of pattern-orientedness is a mechanism
+of composing pattern matches. Since patterns may be interpreted as conditions,
+the algebra of operations on patterns should include logical connectives: AND,
+OR, NOT. In Refal we denote them by &quot;,&quot; (comma), &quot;;&quot;
+(semicolon) and &quot;#&quot; (sharp) respectively. However, in Refal their
+semantics is more complex, as they are used to combine not only booleans but
+also results associated with positive answers. Consequently, a specific combination of
+patterns induces a specific flow of control. Java itself does not contain
+adequate control structures, though they can be translated rather
+straightforward into Java native constructs, such as <i>if</i>, <i>for</i>,
+<i>break,</i> <i>continue </i>and&nbsp; labeled blocks. Of course, one could code
+them directly in Java by hand, but considering readability, clarity, etc. this won't be a good substitute.</p>
+<p align="left">During decades the Refal has shown itself a powerful tool
+applicable to many non-traditional domains where conventional languages and
+tools would require much more effort and courage. And the most compelling
+results were achieved in those cases when advanced users could glue Refal with
+some other &quot;normal&quot; language like Fortran, C, etc. With the advent of
+Refal-Java this poweful tandem is hopefully becoming available for all. Enjoy!</p>
+<h2 align="left">Implementation overview</h2>
+<p align="left">Refal-Java implementation consists of 2 parts: </p>
+<ul>
+  <li>
+    <p align="left">a run-time library written in Java</li>
+  <li>
+    <p align="left">a compiler from Refal to Java written in Refal</li>
+</ul>
+<p align="left">The compiler was developed on the base of existing
+Refal-6-to-RASLcompiler which was also written in Refal-6. The front end
+remained unchanged. Thus the syntax of Refal-J is exactly the same as that of
+Refal-6. The back-end was completely rewritten in such a way that the whole
+Refal-Java compiler could run within Refal-6 machine.</p>
+<p align="left">Further the run-time library was written in Java so as to cover
+all built-in functions of Refal-6. As a result, any program written for Refal-6
+can be compiled to Java and run within Java machine.</p>
+<p align="left">As compiler is written totally in Refal(-6) it can be compiled
+to Java. Thus the Refal-to-Java compiler written in Java emerged. Now it can run
+quite independently of any previous impementations of Refal. In particular it
+can compile itself.</p>
+<h2 align="left">News</h2>
+<dl>
+  <dt><em>2003/4/21</em>
+  <dd><b><a href="RefalJava-0_1_2.zip">Version 0.1.2</a></b></dd>
+  <ul>
+  <li>
+Constant declarations like&nbsp; <font face="Courier New"><br>
+&nbsp;&nbsp;&nbsp; $CONST A=5, B=&lt;MUL &amp;A &amp;A&gt;, MAXINT = &lt;SUB &lt;POW 32 2&gt; 1&gt;;</font> &nbsp;<br>
+ where the
+rhs may contain function calls, however must be, or evaluate to a single term
+(rather than arbitrary expression). The rhs evaluates at initialization time.
+Constants may be used only below definition in either rhs of other constant defs
+or in function bodies.</li>
+  </ul>
+</dl>
+<dl>
+  <dt><em>2003/4/07</em>
+  <dd><b><a href="RefalJava-0_1_1.zip">Version 0.1.1</a></b></dd>
+  <dd>Initial release of Refal-Java.</dd>
+</dl>
+<h2 align="left">Manual (in Russian)</h2>
+<p align="left">Full <a href="manual.htm">description</a> of Refal-6/J, library
+of built-in functions, examples etc.</p>
+<p align="left">A more thorough manual of <a href="refaljava_interface.htm">Refal-Java
+interface</a>.&nbsp;</p>
+<h2 align="left">Download</h2>
+<p align="left">The most recent (raw) version can be loaded from <a href="RefalJava.zip">RefalJava.zip</a> 
+.</p>
+<p align="left">A file <font face="Courier New">RefalJava*.zip</font> includes</p>
+<ul>
+  <li>
+    <p align="left"><font size="3">bin/</font> - Refal-6 (compiler+runtime)
+    system plus all needed bat-files</li>
+  <li>
+    <p align="left">compiler/ - sources in Refal for both Refal-RASL and
+    Refal-Java compilers</li>
+  <li>
+    <p align="left">lib/ - run-time library for Refal-Java (package org.refal.j)
+    in Java</li>
+  <li>
+    <p align="left">examples/ - Refal sample programs</li>
+  <li>
+    <p align="left">doc/ - some documenatation</li>
+  <li>
+    <p align="left">readme.txt - usage instructions</li>
+  <li>
+    <p align="left">rfjc.jar - java class archive of Refal-Java compiler
+    (optional)</li>
+</ul>
+<p align="left">The last item is optional as it can be built from refal sources
+using Refal-6 system. For installation and bootsrtrapping follow instructions in
+<font face="Courier New" size="2">readme.txt</font>. However the Refal-6
+implementation runs only under Windows (95/98/NT/2000/XP). Hence if you use any
+other OS (Linux, AIX, Solaris, ...) you need <font face="Courier New" size="2">rfjc.arj</font>
+to compile your refal programs.</p>
+<p align="left"><b>Requirements: </b>You need the <a href="http://java.sun.com/products/jdk/1.2/">Sun
+JDK 1.2</a> or newer installed on your computer.</p>
+<h2 align="left">Usage</h2>
+<p align="left">First, the run-time library must be compiled by the command (in
+directory <font face="Courier New" size="2">%refalj_home%/lib/</font>):</p>
+<p align="left"><font face="Courier New" size="2">javac org/refal/j/*.java</font></p>
+<p align="left">In addition the resource file <font face="Courier New" size="2">bin/builtinj.fls</font>
+must be copied to package directory <font face="Courier New" size="2">org/refal/j</font>.
+This file contains the list of all builtin functions and their location. Using
+it the compiler allows to not import built-in functions in your refal modules.</p>
+<p align="left">For compilation use the command:</p>
+<p align="left"><font face="Courier New" size="2">java -classpath
+%refalj_home%/rfjc.jar;%refalj_home%/lib org.refal.j.compiler.Rcmainj [options]
+file1.ref file2.ref ...</font></p>
+<p align="left">To get help on <font face="Courier New" size="2">[options]</font>
+run the command without file names.</p>
+<p align="left">Then compile resulting .java files using <font face="Courier New" size="2">javac</font>.</p>
+<p align="left">For running your refal program use the command</p>
+<p align="left"><font face="Courier New" size="2">java -classpath
+%refalj_home%/lib &lt;your main module&gt;</font></p>
+<p align="left">(see details in the Manual)</p>
+<h2 align="left">Future plans</h2>
+<p align="left">You are welcome to discuss and suggest topics in the list below
+<h3 align="left">The Compiler</h3>
+<ol>
+  <li>
+    <p align="left">Warning messages on undefined names should be bound to line
+    number</li>
+</ol>
+<h3 align="left">The language</h3>
+<ol>
+  <li>
+    <p align="left">Reverse (from right to left) pattern recognition (keyword <font face="Courier New">$R</font>,
+    <font face="Courier New">$r</font>).</li>
+  <li>
+    <p align="left">Iterator (keyword <font face="Courier New">$ITER</font>) as
+    in Refal Plus.</li>
+  <li>
+    <p align="left">Anonymous function as part of result expressions (aka
+    lambda-expression) as in <br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font face="Courier New"> &lt;Map
+    &amp;{ sn = &lt;MUL sn sn&gt;;} e.numbers&gt;</font></li>
+  <li>
+    <p align="left">Java type specifiers for variables: <br>
+    <font face="Courier">&nbsp;&nbsp; </font> <font face="Courier">s:int.1
+    e:Class.a e:double.x</font>.</li>
+  <li>
+    <p align="left">Format declarations as in Refal Plus extended with type
+    specifiers, e.g.:<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font face="Courier New">$Func F
+    s:int e:char = s:char</font></li>
+  <li>
+    <p align="left">Multi-valued blocks and functions. A kind of block
+    (function) which generates multivalue, or stream of values. The semantics
+    is: select the first value, for which the subsequent tail yields success.</li>
+  <li>
+    <p align="left">Object oriented extension.</li>
+</ol>
+<h3>The library</h3>
+<ol>
+  <li>Java reflection. A facility to invoke (almost) arbitrary method of Java
+    API.</li>
+  <li>Interface with JDBC.</li>
+</ol>
+&nbsp;<!--msnavigation--></td></tr><!--msnavigation--></table></body>
+
+</html>
